@@ -1,0 +1,100 @@
+﻿export const dynamic = 'force-dynamic'
+
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
+import { logout } from '@/app/login/actions'
+import { Button } from '@/components/ui/button'
+import LogHoursForm from '@/components/features/LogHoursForm'
+import RecentEntries from '@/components/features/RecentEntries'
+import type { RecentEntry } from '@/components/features/RecentEntries'
+
+export default async function LogHoursPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: currentUser } = await supabase
+    .from('users')
+    .select('role, name, designation')
+    .eq('id', user.id)
+    .single()
+
+  const cutoff = new Date()
+  cutoff.setHours(cutoff.getHours() - 48)
+
+  const [
+    { data: projects },
+    { data: recentRaw },
+  ] = await Promise.all([
+    supabase
+      .from('projects')
+      .select('id, name, status')
+      .in('status', ['active', 'on_hold', 'complete'])
+      .order('name'),
+    supabase
+      .from('weekly_hours')
+      .select('id, week_start, project_id, hours_logged, designation, rating, leave_type, entry_date, project:projects(name)')
+      .eq('user_id', user.id)
+      .gte('entry_date', cutoff.toISOString())
+      .order('entry_date', { ascending: false }),
+  ])
+
+  // Flatten the project join
+  const recentEntries: RecentEntry[] = (recentRaw ?? []).map((r: {
+    id: string; week_start: string; project_id: string | null; hours_logged: number;
+    designation: string; rating: number; leave_type: string | null; entry_date: string;
+    project: { name: string } | null;
+  }) => ({
+    id:           r.id,
+    week_start:   r.week_start,
+    project_id:   r.project_id,
+    hours_logged: r.hours_logged,
+    designation:  r.designation,
+    rating:       r.rating,
+    leave_type:   r.leave_type,
+    entry_date:   r.entry_date,
+    project_name: r.project?.name ?? null,
+  }))
+
+  const projectList = (projects ?? []).map(p => ({ id: p.id, name: p.name, status: p.status }))
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-teal-700 border-b border-teal-800 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/employees" className="text-sm text-teal-100 hover:text-white">← Employees</Link>
+          <span className="text-teal-400">/</span>
+          <h1 className="text-lg font-semibold text-white">Log Work Hours</h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-teal-100">
+            {currentUser?.name ?? user?.email}
+            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs capitalize">
+              {currentUser?.role}
+            </span>
+          </span>
+          <form action={logout}>
+            <Button variant="outline" size="sm" type="submit" className="border-teal-400 text-teal-100 hover:bg-teal-600 hover:border-teal-300 bg-transparent">Sign out</Button>
+          </form>
+        </div>
+      </header>
+
+      <main className="p-6">
+        <div className="max-w-lg mx-auto space-y-5">
+
+          {/* Recent entries — edit / delete */}
+          <RecentEntries entries={recentEntries} projects={projectList} />
+
+          {/* New entry form */}
+          <div className="bg-white rounded-lg border p-6">
+            <h2 className="text-base font-semibold text-teal-900 mb-1">Log hours for last week</h2>
+            <p className="text-sm text-slate-500 mb-5">Record your work hours for a specific project and week.</p>
+            <LogHoursForm projects={projectList} />
+          </div>
+
+        </div>
+      </main>
+    </div>
+  )
+}

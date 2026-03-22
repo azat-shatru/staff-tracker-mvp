@@ -48,72 +48,97 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  /* ── Page chrome — neutral white so content breathes ─────────────── */
+  --background:            oklch(0.99 0     0);     /* pure white               */
+  --foreground:            oklch(0.13 0.01  250);   /* near-black body text     */
+
+  /* ── Cards / popovers ────────────────────────────────────────────── */
+  --card:                  oklch(1    0     0);
+  --card-foreground:       oklch(0.13 0.01  250);
+  --popover:               oklch(1    0     0);
+  --popover-foreground:    oklch(0.13 0.01  250);
+
+  /* ── Primary action — vivid teal ─────────────────────────────────── */
+  --primary:               oklch(0.55 0.15  185);   /* teal-600                 */
+  --primary-foreground:    oklch(0.99 0     0);     /* white                    */
+
+  /* ── Secondary / muted surfaces ─────────────────────────────────── */
+  --secondary:             oklch(0.94 0.03  160);   /* light emerald tint       */
+  --secondary-foreground:  oklch(0.25 0.05  185);
+  --muted:                 oklch(0.96 0.01  240);   /* near-neutral light       */
+  --muted-foreground:      oklch(0.50 0.01  250);   /* medium neutral gray      */
+  --accent:                oklch(0.91 0.05  160);   /* emerald accent           */
+  --accent-foreground:     oklch(0.25 0.06  185);
+
+  /* ── Destructive ─────────────────────────────────────────────────── */
+  --destructive:           oklch(0.577 0.245 27.325);
+
+  /* ── Chrome ──────────────────────────────────────────────────────── */
+  --border:                oklch(0.91 0.03  160);   /* very subtle emerald      */
+  --input:                 oklch(0.91 0.03  160);
+  --ring:                  oklch(0.55 0.15  185);   /* teal focus ring          */
+
+  /* ── Charts — teal/emerald palette ──────────────────────────────── */
+  --chart-1:               oklch(0.65 0.17  185);   /* teal                     */
+  --chart-2:               oklch(0.60 0.18  155);   /* emerald                  */
+  --chart-3:               oklch(0.72 0.15  200);   /* cyan                     */
+  --chart-4:               oklch(0.68 0.14  165);   /* mint                     */
+  --chart-5:               oklch(0.55 0.13  185);   /* deep teal                */
+
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  /* ── Sidebar ─────────────────────────────────────────────────────── */
+  --sidebar:               oklch(0.95 0.03  160);
+  --sidebar-foreground:    oklch(0.13 0.01  250);
+  --sidebar-primary:       oklch(0.55 0.15  185);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent:        oklch(0.91 0.05  160);
+  --sidebar-accent-foreground: oklch(0.25 0.06 185);
+  --sidebar-border:        oklch(0.91 0.03  160);
+  --sidebar-ring:          oklch(0.55 0.15  185);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* True black base ── content floats on near-black */
+  --background:            oklch(0.08 0.02  185);   /* ~#030a09                 */
+  --foreground:            oklch(0.93 0.03  165);   /* near-white with teal tint*/
+
+  --card:                  oklch(0.12 0.03  185);   /* ~#0d1a18 dark card       */
+  --card-foreground:       oklch(0.93 0.03  165);
+  --popover:               oklch(0.12 0.03  185);
+  --popover-foreground:    oklch(0.93 0.03  165);
+
+  /* Vivid teal primary — stands out on black */
+  --primary:               oklch(0.65 0.17  185);   /* bright teal-500          */
+  --primary-foreground:    oklch(0.08 0.02  185);   /* near-black               */
+
+  --secondary:             oklch(0.18 0.04  185);   /* dark surface             */
+  --secondary-foreground:  oklch(0.85 0.04  165);
+  --muted:                 oklch(0.15 0.03  185);
+  --muted-foreground:      oklch(0.55 0.06  185);   /* medium grey-teal         */
+  --accent:                oklch(0.18 0.04  185);
+  --accent-foreground:     oklch(0.85 0.04  165);
+
+  --destructive:           oklch(0.65 0.22  22);
+
+  --border:                oklch(0.22 0.05  185);   /* dark teal-grey border    */
+  --input:                 oklch(0.18 0.04  185);
+  --ring:                  oklch(0.65 0.17  185);
+
+  --chart-1:               oklch(0.70 0.17  185);
+  --chart-2:               oklch(0.65 0.18  155);
+  --chart-3:               oklch(0.75 0.15  200);
+  --chart-4:               oklch(0.68 0.14  165);
+  --chart-5:               oklch(0.55 0.13  185);
+
+  --sidebar:               oklch(0.10 0.02  185);
+  --sidebar-foreground:    oklch(0.93 0.03  165);
+  --sidebar-primary:       oklch(0.65 0.17  185);
+  --sidebar-primary-foreground: oklch(0.08 0.02 185);
+  --sidebar-accent:        oklch(0.18 0.04  185);
+  --sidebar-accent-foreground: oklch(0.85 0.04 165);
+  --sidebar-border:        oklch(0.22 0.05  185);
+  --sidebar-ring:          oklch(0.65 0.17  185);
 }
 
 @layer base {
@@ -127,3 +152,99 @@
     @apply font-sans;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DARK MODE — full black-base overrides
+   All hardcoded Tailwind utility classes are remapped here so that adding
+   the `dark` class to <html> flips the whole UI without touching every file.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Page & surface backgrounds ─────────────────────────────────────── */
+.dark .bg-slate-50,
+.dark .bg-emerald-50,
+.dark .min-h-screen          { background-color: #030a09; }   /* near-black, faint teal tint  */
+
+.dark .bg-white               { background-color: #0d1a18; }   /* dark card surface            */
+
+.dark .bg-emerald-100         { background-color: rgba(16,185,129,.12); }
+.dark .bg-emerald-200         { background-color: rgba(16,185,129,.18); }
+
+.dark .hover\:bg-emerald-50:hover { background-color: #0f201d; }  /* row hover                */
+
+/* ── Borders & dividers ──────────────────────────────────────────────── */
+.dark .border,
+.dark [class*="border-emerald"],
+.dark [class*="border-teal-1"],
+.dark [class*="border-teal-2"],
+.dark [class*="border-teal-3"],
+.dark .divide-y > * + *       { border-color: #1e3530; }        /* dark teal-grey border        */
+
+/* ── Primary text ────────────────────────────────────────────────────── */
+.dark .text-teal-900,
+.dark .text-slate-900         { color: #e8f5f3; }               /* near-white                   */
+
+.dark .text-teal-700,
+.dark .text-slate-700         { color: #a8ccc7; }               /* light grey-teal              */
+
+.dark .text-slate-600,
+.dark .text-slate-500         { color: #6fa09a; }               /* medium grey-teal             */
+
+.dark .text-slate-400,
+.dark .text-teal-400          { color: #4d7a74; }               /* muted                        */
+
+.dark .text-slate-300,
+.dark .text-teal-300          { color: #2e5550; }               /* very muted                   */
+
+/* ── Headings & white text that stays white ──────────────────────────── */
+.dark .text-white             { color: #e8f5f3; }
+
+/* ── Keep teal brand colours bright ────────────────────────────────────  */
+.dark .text-teal-100          { color: #ccfbf1; }
+.dark .bg-teal-700            { background-color: #115e59; }    /* header stays dark-teal       */
+.dark .bg-teal-600,
+.dark .hover\:bg-teal-600:hover { background-color: #0d9488; }
+.dark .hover\:bg-teal-700:hover { background-color: #0f766e; }
+
+/* ── Form inputs — key for usability ────────────────────────────────── */
+.dark input,
+.dark select,
+.dark textarea                {
+  background-color: #0d1a18 !important;
+  border-color:     #1e3530 !important;
+  color:            #e8f5f3 !important;
+  color-scheme:     dark;
+}
+.dark input::placeholder,
+.dark textarea::placeholder   { color: #4d7a74; }
+.dark input:disabled,
+.dark select:disabled         {
+  background-color: #060f0e !important;
+  color:            #2e5550 !important;
+}
+
+/* ── Status / semantic badge colours (keep legible) ─────────────────── */
+.dark .bg-green-50            { background-color: rgba(6,78,59,.25); }
+.dark .bg-green-100           { background-color: rgba(6,78,59,.35); }
+.dark .text-green-800,
+.dark .text-green-700         { color: #6ee7b7; }
+.dark .bg-red-50              { background-color: rgba(127,29,29,.25); }
+.dark .bg-red-100             { background-color: rgba(127,29,29,.35); }
+.dark .text-red-700,
+.dark .text-red-600           { color: #fca5a5; }
+.dark .bg-yellow-50           { background-color: rgba(113,63,18,.25); }
+.dark .bg-yellow-100          { background-color: rgba(113,63,18,.35); }
+.dark .text-yellow-600,
+.dark .text-yellow-700        { color: #fde68a; }
+.dark .bg-blue-100            { background-color: rgba(30,58,138,.35); }
+.dark .text-blue-700          { color: #93c5fd; }
+.dark .bg-orange-100          { background-color: rgba(124,45,18,.35); }
+.dark .text-orange-700,
+.dark .text-orange-500        { color: #fdba74; }
+.dark .bg-emerald-100.text-emerald-700 { color: #6ee7b7; }
+
+/* ── Shadow + ring adjustments ─────────────────────────────────────── */
+.dark .shadow-lg,
+.dark .shadow-md              { box-shadow: 0 4px 24px rgba(0,0,0,.6); }
+
+/* ── Popover / dropdown ─────────────────────────────────────────────── */
+.dark .bg-white.border.rounded-lg.shadow-lg { background-color: #0d1a18; }
