@@ -76,7 +76,7 @@ export default function AssignmentsSection({ projectId, projectManager, assignme
     setLocalAssignments(prev => [...prev, optimisticAssignment])
 
     const result = await addAssignment(projectId, form.userId, form.roleLabel, form.allocationPct, null, null)
-    if (result?.error) {
+    if ('error' in result && result.error) {
       setLocalAssignments(prev => prev.filter(a => a.id !== optimisticAssignment.id))
       setSaving(false)
       return
