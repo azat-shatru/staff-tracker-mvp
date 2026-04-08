@@ -45,7 +45,7 @@ export default async function LogHoursPage() {
   const recentEntries: RecentEntry[] = (recentRaw ?? []).map((r: {
     id: string; week_start: string; project_id: string | null; hours_logged: number;
     rating: number; leave_type: string | null; entry_date: string;
-    project: { name: string } | null;
+    project: { name: string }[] | { name: string } | null;
   }) => ({
     id:           r.id,
     week_start:   r.week_start,
@@ -54,7 +54,7 @@ export default async function LogHoursPage() {
     rating:       r.rating,
     leave_type:   r.leave_type,
     entry_date:   r.entry_date,
-    project_name: r.project?.name ?? null,
+    project_name: (Array.isArray(r.project) ? r.project[0]?.name : r.project?.name) ?? null,
   }))
 
   const projectList = (projects ?? []).map(p => ({ id: p.id, name: p.name, status: p.status }))
