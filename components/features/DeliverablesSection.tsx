@@ -43,7 +43,7 @@ export default function DeliverablesSection({ stageId, projectId, deliverables }
     setLoading(true)
     setActionError(null)
     const result = await addDeliverable(formData, stageId, projectId)
-    if (result.error) setActionError(result.error)
+    if ('error' in result && result.error) setActionError(result.error)
     else setShowForm(false)
     setLoading(false)
     router.refresh()

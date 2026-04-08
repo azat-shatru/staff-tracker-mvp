@@ -34,12 +34,12 @@ export default function NewProjectModal({ users }: Props) {
     setError(null)
     try {
       const result = await createProject(formData)
-      if (result.error) {
+      if ('error' in result) {
         setError(result.error)
       } else {
         setOpen(false)
         formRef.current?.reset()
-        router.push(`/projects/${result.projectId}`)
+        router.push(`/projects/${'projectId' in result ? result.projectId : ''}`)
       }
     } finally {
       setLoading(false)
