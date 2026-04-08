@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   })
 
   const [{ data: allUsers }, { data: allHours }] = await Promise.all([
-    supabase.from('users').select('id, name, capacity_hours').order('name').limit(500),
+    supabase.from('users').select('id, name, capacity_hours').in('role', ['analyst', 'consultant']).order('name').limit(500),
     supabase
       .from('weekly_hours')
       .select('user_id, hours_logged, week_start, leave_type')

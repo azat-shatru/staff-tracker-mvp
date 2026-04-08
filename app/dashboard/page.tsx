@@ -87,7 +87,7 @@ export default async function DashboardPage() {
     { data: allStageNotes },
   ] = await Promise.all([
     supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(500),
-    supabase.from('users').select('id, name, role, capacity_hours').order('name').limit(500),
+    supabase.from('users').select('id, name, role, capacity_hours').in('role', ['analyst', 'consultant']).order('name').limit(500),
     supabase
       .from('project_stages')
       .select('project_id, completed_at')

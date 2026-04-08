@@ -73,11 +73,12 @@ export async function fetchUtilizationDetail(
   const projMap: Record<string, ProjectDetail>  = {}
 
   for (const raw of (rows ?? []) as unknown as Row[]) {
+    const uRole  = raw.users?.role ?? ''
+    if (!['analyst', 'consultant'].includes(uRole)) continue
     const uid    = raw.user_id
     const pid    = raw.project_id ?? 'unassigned'
     const hours  = raw.hours_logged ?? 0
     const uName  = raw.users?.name ?? 'Unknown'
-    const uRole  = raw.users?.role ?? ''
     const pName  = raw.projects?.name ?? 'No project'
 
     if (!empMap[uid]) empMap[uid] = { userId: uid, name: uName, role: uRole, totalHours: 0, projects: [] }
