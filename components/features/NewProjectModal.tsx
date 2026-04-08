@@ -35,7 +35,7 @@ export default function NewProjectModal({ users }: Props) {
     try {
       const result = await createProject(formData)
       if ('error' in result) {
-        setError(result.error)
+        setError(result.error ?? null)
       } else {
         setOpen(false)
         formRef.current?.reset()
