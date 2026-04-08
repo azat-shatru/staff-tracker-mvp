@@ -59,7 +59,6 @@ export type UserUtilizationData = {
   userId: string
   name: string
   role: string
-  designation: string
   actualHours: number          // logged in period
   capacityHours: number        // period capacity (weekCount × 40)
   predictedHoursPerWeek: number

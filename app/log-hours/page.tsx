@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import LogHoursForm from '@/components/features/LogHoursForm'
 import RecentEntries from '@/components/features/RecentEntries'
 import type { RecentEntry } from '@/components/features/RecentEntries'
+import { ROLE_DISPLAY } from '@/lib/types'
 
 export default async function LogHoursPage() {
   const supabase = await createClient()
@@ -16,7 +17,7 @@ export default async function LogHoursPage() {
 
   const { data: currentUser } = await supabase
     .from('users')
-    .select('role, name, designation')
+    .select('role, name')
     .eq('id', user.id)
     .single()
 
@@ -34,7 +35,7 @@ export default async function LogHoursPage() {
       .order('name'),
     supabase
       .from('weekly_hours')
-      .select('id, week_start, project_id, hours_logged, designation, rating, leave_type, entry_date, project:projects(name)')
+      .select('id, week_start, project_id, hours_logged, rating, leave_type, entry_date, project:projects(name)')
       .eq('user_id', user.id)
       .gte('entry_date', cutoff.toISOString())
       .order('entry_date', { ascending: false }),
@@ -43,14 +44,13 @@ export default async function LogHoursPage() {
   // Flatten the project join
   const recentEntries: RecentEntry[] = (recentRaw ?? []).map((r: {
     id: string; week_start: string; project_id: string | null; hours_logged: number;
-    designation: string; rating: number; leave_type: string | null; entry_date: string;
+    rating: number; leave_type: string | null; entry_date: string;
     project: { name: string } | null;
   }) => ({
     id:           r.id,
     week_start:   r.week_start,
     project_id:   r.project_id,
     hours_logged: r.hours_logged,
-    designation:  r.designation,
     rating:       r.rating,
     leave_type:   r.leave_type,
     entry_date:   r.entry_date,
@@ -70,8 +70,8 @@ export default async function LogHoursPage() {
         <div className="flex items-center gap-4">
           <span className="text-sm text-teal-100">
             {currentUser?.name ?? user?.email}
-            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs capitalize">
-              {currentUser?.role}
+            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs">
+              {ROLE_DISPLAY[currentUser?.role ?? ''] ?? currentUser?.role ?? ''}
             </span>
           </span>
           <form action={logout}>

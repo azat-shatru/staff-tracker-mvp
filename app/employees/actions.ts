@@ -8,7 +8,6 @@ export async function createEmployee(data: {
   name: string
   email: string
   role: string
-  designation: string
   team: string
   reports_to: string | null
   capacity_hours: number
@@ -34,6 +33,7 @@ export async function createEmployee(data: {
     user_metadata: { name: data.name, role: data.role },
   })
 
+
   if (authError) return { error: authError.message }
 
   // Upsert the profile row — handles both cases:
@@ -46,7 +46,6 @@ export async function createEmployee(data: {
       email:          data.email,
       name:           data.name,
       role:           data.role,
-      designation:    data.designation,
       capacity_hours: data.capacity_hours,
       team:           data.team || '',
       reports_to:     data.reports_to || null,
@@ -64,7 +63,6 @@ export async function createEmployee(data: {
 export async function updateEmployee(userId: string, data: {
   name: string
   role: string
-  designation: string
   team: string
   reports_to: string | null
   capacity_hours: number
@@ -86,7 +84,6 @@ export async function updateEmployee(userId: string, data: {
     .update({
       name:           data.name,
       role:           data.role,
-      designation:    data.designation,
       capacity_hours: data.capacity_hours,
     })
     .eq('id', userId)

@@ -24,7 +24,6 @@ create table public.users (
   name text not null,
   email text not null unique,
   role user_role not null default 'analyst',
-  designation text not null default '',
   capacity_hours numeric not null default 40,
   efficiency_modifier numeric not null default 1.0,
   created_at timestamptz not null default now()

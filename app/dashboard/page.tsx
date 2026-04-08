@@ -10,6 +10,7 @@ import { getPermissions } from '@/lib/permissions'
 import { weekStart, toDateStr, buildStageTimeline } from '@/lib/utilization'
 import DashboardInsights from '@/components/features/DashboardInsights'
 import type { Project, Role } from '@/lib/types'
+import { ROLE_DISPLAY } from '@/lib/types'
 
 const STATUS_STYLES: Record<string, string> = {
   active:   'bg-green-100 text-green-700',
@@ -86,7 +87,7 @@ export default async function DashboardPage() {
     { data: allStageNotes },
   ] = await Promise.all([
     supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(500),
-    supabase.from('users').select('id, name, role, designation, capacity_hours').order('name').limit(500),
+    supabase.from('users').select('id, name, role, capacity_hours').order('name').limit(500),
     supabase
       .from('project_stages')
       .select('project_id, completed_at')
@@ -94,7 +95,7 @@ export default async function DashboardPage() {
       .eq('status', 'complete'),
     supabase
       .from('assignments')
-      .select('project_id, user_id, role_label, allocation_pct, user:users(id, name, designation)')
+      .select('project_id, user_id, role_label, allocation_pct, user:users(id, name, role)')
       .limit(1000),
     supabase
       .from('weekly_hours')
@@ -120,7 +121,7 @@ export default async function DashboardPage() {
   )
 
   // Map project_id → assigned members
-  type AssignmentRow = { project_id: string; user_id: string; role_label: string; allocation_pct: number; user: { id: string; name: string; designation: string } | null }
+  type AssignmentRow = { project_id: string; user_id: string; role_label: string; allocation_pct: number; user: { id: string; name: string; role: string } | null }
   const membersByProject: Record<string, AssignmentRow[]> = {}
   for (const a of (allAssignments ?? []) as unknown as AssignmentRow[]) {
     if (!membersByProject[a.project_id]) membersByProject[a.project_id] = []
@@ -136,7 +137,7 @@ export default async function DashboardPage() {
   }
 
   // ── Utilization — past 12 weeks ──────────────────────────────────────────────
-  type UserWithCap = { id: string; name: string; role: string; designation: string; capacity_hours: number | null }
+  type UserWithCap = { id: string; name: string; role: string; capacity_hours: number | null }
   type HoursRow    = { user_id: string; hours_logged: number; week_start: string; leave_type: string | null }
 
   const employeeCount = (allUsers ?? []).length
@@ -180,7 +181,7 @@ export default async function DashboardPage() {
     const { pct } = weekUtil(weekStr)
     const weekDate = new Date(weekStr)
     const label = weekDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-    return { label, pct }
+    return { label, pct, weekStart: weekStr }
   })
 
   const lastWeekUtilData = weekUtil(prevWeekStr)
@@ -290,8 +291,8 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-4">
           <span className="text-sm text-teal-100">
             {currentUser?.name ?? user?.email}
-            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs capitalize">
-              {currentUser?.role}
+            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs">
+              {ROLE_DISPLAY[currentUser?.role ?? ''] ?? currentUser?.role ?? ''}
             </span>
           </span>
           <form action={logout}>
@@ -311,6 +312,7 @@ export default async function DashboardPage() {
               projectedCurrentWeekPct={projectedCurrentWeekPct}
               projectedByWeek={projectedByWeek}
               employeeCount={employeeCount}
+              canDrillDown={perms.canViewUtilization}
             />
           )}
 
@@ -373,7 +375,7 @@ export default async function DashboardPage() {
                               <span
                                 key={m.user_id}
                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 rounded text-xs text-teal-700"
-                                title={`${m.role_label || (m.user?.designation ?? '')} · ${m.allocation_pct}%`}
+                                title={`${m.role_label || (ROLE_DISPLAY[m.user?.role ?? ''] ?? m.user?.role ?? '')} · ${m.allocation_pct}%`}
                               >
                                 {m.user?.name ?? '—'}
                                 <span className="text-slate-400">{m.allocation_pct}%</span>

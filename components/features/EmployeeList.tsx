@@ -5,18 +5,12 @@ import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import { createEmployee, updateEmployee, removeEmployee } from '@/app/employees/actions'
 import type { User, Role } from '@/lib/types'
+import { ROLE_DISPLAY } from '@/lib/types'
 
 const ROLES: Role[] = ['analyst', 'consultant', 'manager', 'director', 'executive']
-const ROLE_STYLES: Record<string, string> = {
-  analyst:    'bg-emerald-100 text-teal-700',
-  consultant: 'bg-blue-100 text-blue-700',
-  manager:    'bg-purple-100 text-purple-700',
-  director:   'bg-orange-100 text-orange-700',
-  executive:  'bg-red-100 text-red-700',
-}
 const TEAMS = ['Insights', 'UST', 'SV Team', 'Programming', 'BA', 'Fielding', 'Management']
 
-type UserRow = Pick<User, 'id' | 'name' | 'email' | 'role' | 'designation' | 'team' | 'reports_to' | 'capacity_hours'>
+type UserRow = Pick<User, 'id' | 'name' | 'email' | 'role' | 'team' | 'reports_to' | 'capacity_hours'>
 
 interface Props {
   users: UserRow[]
@@ -26,7 +20,7 @@ interface Props {
 
 const EMPTY_FORM = {
   name: '', email: '', role: 'analyst' as Role,
-  designation: '', team: '', reports_to: '', capacity_hours: 40,
+  team: '', reports_to: '', capacity_hours: 40,
 }
 
 export default function EmployeeList({ users, currentUserId, canManage }: Props) {
@@ -45,7 +39,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase()) ||
     (u.team ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.designation ?? '').toLowerCase().includes(search.toLowerCase())
+    (ROLE_DISPLAY[u.role] ?? u.role).toLowerCase().includes(search.toLowerCase())
   )
 
   function openAdd() {
@@ -55,7 +49,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
   function openEdit(u: UserRow) {
     setForm({
       name: u.name, email: u.email, role: u.role,
-      designation: u.designation ?? '', team: u.team ?? '',
+      team: u.team ?? '',
       reports_to: u.reports_to ?? '', capacity_hours: u.capacity_hours,
     })
     setError(null); setEditUser(u)
@@ -66,7 +60,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
     setSaving(true); setError(null)
     const res = await createEmployee({
       name: form.name, email: form.email, role: form.role,
-      designation: form.designation, team: form.team,
+      team: form.team,
       reports_to: form.reports_to || null, capacity_hours: form.capacity_hours,
     })
     setSaving(false)
@@ -79,7 +73,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
     setSaving(true); setError(null)
     const res = await updateEmployee(editUser.id, {
       name: form.name, role: form.role,
-      designation: form.designation, team: form.team,
+      team: form.team,
       reports_to: form.reports_to || null, capacity_hours: form.capacity_hours,
     })
     setSaving(false)
@@ -99,6 +93,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
   const managersAndAbove = users.filter(u =>
     u.role === 'manager' || u.role === 'director' || u.role === 'executive'
   )
+
 
   return (
     <div className="space-y-4">
@@ -126,7 +121,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
         <table className="w-full text-sm">
           <thead className="bg-emerald-50 border-b">
             <tr>
-              {['Name', 'Role', 'Designation', 'Team', 'Reports To', 'Capacity', ''].map(h => (
+              {['Name', 'Role', 'Team', 'Reports To', 'Capacity', ''].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">
                   {h}
                 </th>
@@ -136,7 +131,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
           <tbody className="divide-y">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">
                   No employees found.
                 </td>
               </tr>
@@ -153,12 +148,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
                     </div>
                     <div className="text-xs text-slate-400">{u.email}</div>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${ROLE_STYLES[u.role]}`}>
-                      {u.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-teal-700 text-sm">{u.designation || '—'}</td>
+                  <td className="px-4 py-3 text-teal-700 text-sm">{ROLE_DISPLAY[u.role] ?? u.role}</td>
                   <td className="px-4 py-3 text-teal-700 text-sm">{u.team || '—'}</td>
                   <td className="px-4 py-3 text-teal-700 text-sm">{reportsTo?.name ?? '—'}</td>
                   <td className="px-4 py-3 text-teal-700 text-sm">{u.capacity_hours}h/wk</td>
@@ -402,16 +392,8 @@ function EmployeeForm({
             value={form.role} onChange={e => set('role', e.target.value)}
             className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
           >
-            {ROLES.map(r => <option key={r} value={r} className="capitalize">{r}</option>)}
+            {ROLES.map(r => <option key={r} value={r}>{ROLE_DISPLAY[r] ?? r}</option>)}
           </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-teal-700 mb-1">Designation</label>
-          <input
-            value={form.designation} onChange={e => set('designation', e.target.value)}
-            placeholder="e.g. Senior Analyst"
-            className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
-          />
         </div>
         <div>
           <label className="block text-xs font-medium text-teal-700 mb-1">Team</label>
@@ -432,7 +414,7 @@ function EmployeeForm({
           >
             <option value="">— None —</option>
             {managers.map(m => (
-              <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+              <option key={m.id} value={m.id}>{m.name} · {ROLE_DISPLAY[m.role] ?? m.role}</option>
             ))}
           </select>
         </div>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createProject } from '@/app/dashboard/actions'
 import { Button } from '@/components/ui/button'
 import type { User } from '@/lib/types'
+import { ROLE_DISPLAY } from '@/lib/types'
 
 const PROJECT_TYPES = [
   'Brand Tracking',
@@ -18,7 +19,7 @@ const PROJECT_TYPES = [
 ]
 
 interface Props {
-  users: Pick<User, 'id' | 'name' | 'role' | 'designation'>[]
+  users: Pick<User, 'id' | 'name' | 'role'>[]
 }
 
 export default function NewProjectModal({ users }: Props) {
@@ -101,7 +102,7 @@ export default function NewProjectModal({ users }: Props) {
                     .filter(u => u.role === 'manager' || u.role === 'consultant')
                     .map(u => (
                       <option key={u.id} value={u.id}>
-                        {u.name} ({u.designation || u.role})
+                        {u.name} ({ROLE_DISPLAY[u.role] ?? u.role})
                       </option>
                     ))}
                 </select>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import type { UserUtilizationData, StageTimelineItem } from '@/lib/utilization'
 import { STAGE_ORDER } from '@/lib/utilization'
+import { ROLE_DISPLAY } from '@/lib/types'
 
 interface Props {
   data: UserUtilizationData
@@ -66,7 +67,7 @@ export default function StaffingRow({ data, weekCount }: Props) {
           <span className="text-slate-400 text-xs w-3">{expanded ? '▼' : '▶'}</span>
           <div>
             <span className="font-medium text-teal-900 text-sm">{data.name}</span>
-            <span className="ml-2 text-xs text-slate-400">{data.designation || data.role}</span>
+            <span className="ml-2 text-xs text-slate-400">{ROLE_DISPLAY[data.role] ?? data.role}</span>
           </div>
           {data.projects.length > 0 && (
             <span className="text-xs text-slate-400">
@@ -172,7 +173,7 @@ export default function StaffingRow({ data, weekCount }: Props) {
                       ))}
                     </div>
                     <p className="text-xs text-slate-400 mt-2 pt-2 border-t">
-                      Role: <span className="text-teal-700">{project.roleLabel || data.role}</span>
+                      Role: <span className="text-teal-700">{project.roleLabel || (ROLE_DISPLAY[data.role] ?? data.role)}</span>
                       {project.projectEndDate && (
                         <> · Project ends <span className="text-teal-700">{formatDate(project.projectEndDate)}</span></>
                       )}

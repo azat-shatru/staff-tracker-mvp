@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { getPermissions } from '@/lib/permissions'
 import { STAGE_HOURS, STAGE_LABELS } from '@/lib/utilization'
 import type { Role } from '@/lib/types'
+import { ROLE_DISPLAY } from '@/lib/types'
 
 const STAGE_STATUS_STYLES: Record<string, string> = {
   in_progress: 'bg-blue-100 text-blue-700',
@@ -39,7 +40,7 @@ export default async function TeamPage() {
     { data: allAssignments },
     { data: inProgressStages },
   ] = await Promise.all([
-    supabase.from('users').select('id, name, role, designation').order('name').limit(500),
+    supabase.from('users').select('id, name, role').order('name').limit(500),
     supabase
       .from('assignments')
       .select('user_id, project_id, role_label, allocation_pct, project:projects(id, name, client, status)').limit(1000),
@@ -82,7 +83,7 @@ export default async function TeamPage() {
     }
   }
 
-  type UserRow = { id: string; name: string; role: string; designation: string }
+  type UserRow = { id: string; name: string; role: string }
 
   // Build per-employee data
   const teamData = ((allUsers ?? []) as UserRow[]).map(u => {
@@ -132,8 +133,8 @@ export default async function TeamPage() {
         <div className="flex items-center gap-4">
           <span className="text-sm text-teal-100">
             {currentUser?.name ?? user?.email}
-            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs capitalize">
-              {currentUser?.role}
+            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs">
+              {ROLE_DISPLAY[currentUser?.role ?? ''] ?? currentUser?.role ?? ''}
             </span>
           </span>
           <form action={logout}>
@@ -174,7 +175,7 @@ export default async function TeamPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-teal-900 text-sm">{u.name}</span>
-                      <span className="text-xs text-slate-400">{u.designation || u.role}</span>
+                      <span className="text-xs text-slate-400">{ROLE_DISPLAY[u.role] ?? u.role}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       {activeWork.length === 0 ? (

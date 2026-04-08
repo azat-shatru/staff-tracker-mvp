@@ -4,16 +4,17 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { addAssignment, removeAssignment, updateAssignmentAllocation } from '@/app/projects/[id]/assignment-actions'
 import type { Assignment, User } from '@/lib/types'
+import { ROLE_DISPLAY } from '@/lib/types'
 
 interface Props {
   projectId: string
-  projectManager: Pick<User, 'id' | 'name' | 'role' | 'designation'> | null
-  assignments: (Assignment & { user: Pick<User, 'id' | 'name' | 'role' | 'designation'> })[]
-  users: Pick<User, 'id' | 'name' | 'role' | 'designation'>[]
+  projectManager: Pick<User, 'id' | 'name' | 'role'> | null
+  assignments: (Assignment & { user: Pick<User, 'id' | 'name' | 'role'> })[]
+  users: Pick<User, 'id' | 'name' | 'role'>[]
   canManage: boolean
 }
 
-const ROLE_LABELS = ['Analyst', 'Consultant', 'QC Reviewer', 'Support', 'Data Team']
+const ROLE_LABELS = ['Analyst', 'Consultant/AC', 'QC Reviewer', 'Support', 'Data Team']
 
 /** Round x to the nearest step, clamped to [min, max] */
 function snapToStep(x: number, step: number, min: number, max: number) {
@@ -71,7 +72,7 @@ export default function AssignmentsSection({ projectId, projectManager, assignme
       start_date: null,
       end_date: null,
       user: selectedUser,
-    } as Assignment & { user: Pick<User, 'id' | 'name' | 'role' | 'designation'> }
+    } as Assignment & { user: Pick<User, 'id' | 'name' | 'role'> }
     setLocalAssignments(prev => [...prev, optimisticAssignment])
 
     const result = await addAssignment(projectId, form.userId, form.roleLabel, form.allocationPct, null, null)
@@ -201,7 +202,7 @@ export default function AssignmentsSection({ projectId, projectManager, assignme
                 <option value="">— Select —</option>
                 {availableUsers.map(u => (
                   <option key={u.id} value={u.id}>
-                    {u.name} ({u.designation || u.role})
+                    {u.name} ({ROLE_DISPLAY[u.role] ?? u.role})
                   </option>
                 ))}
               </select>
@@ -272,7 +273,7 @@ function AssignmentRow({
   onRemove,
   onAllocationChange,
 }: {
-  assignment: Assignment & { user: Pick<User, 'id' | 'name' | 'role' | 'designation'> }
+  assignment: Assignment & { user: Pick<User, 'id' | 'name' | 'role'> }
   canManage: boolean
   onRemove: () => void
   onAllocationChange: (val: number) => void
@@ -301,7 +302,7 @@ function AssignmentRow({
       <div className="flex flex-col gap-0.5">
         <span className="text-sm font-medium text-teal-900">{assignment.user.name}</span>
         <span className="text-xs text-slate-400">
-          {assignment.role_label || (assignment.user.designation || assignment.user.role)}
+          {assignment.role_label || (ROLE_DISPLAY[assignment.user.role] ?? assignment.user.role)}
         </span>
       </div>
       <div className="flex items-center gap-3">

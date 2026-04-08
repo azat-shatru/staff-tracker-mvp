@@ -14,7 +14,6 @@ export interface RecentEntry {
   week_start:   string
   project_id:   string | null
   hours_logged: number
-  designation:  string
   rating:       number
   leave_type:   string | null
   project_name: string | null

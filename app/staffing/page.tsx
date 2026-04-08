@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { getPermissions } from '@/lib/permissions'
 import type { Role } from '@/lib/types'
+import { ROLE_DISPLAY } from '@/lib/types'
 import {
   STAGE_HOURS, CAPACITY_PER_WEEK,
   getPeriodBounds, buildStageTimeline,
@@ -45,7 +46,7 @@ export default async function StaffingPage({
     { data: weeklyHours },
     { data: allStageNotes },
   ] = await Promise.all([
-    supabase.from('users').select('id, name, role, designation, capacity_hours').order('name').limit(500),
+    supabase.from('users').select('id, name, role, capacity_hours').order('name').limit(500),
     supabase
       .from('assignments')
       .select('id, user_id, project_id, role_label, allocation_pct, project:projects(id, name, status, kickoff_date, target_delivery_date)').limit(1000),
@@ -76,7 +77,7 @@ export default async function StaffingPage({
   type StageRow  = { id: string; project_id: string; stage: string; status: string }
   type NoteRow   = { stage_id: string; value: string }
   type WeeklyRow = { user_id: string; project_id: string; hours_logged: number; week_start: string }
-  type UserRow   = { id: string; name: string; role: string; designation: string; capacity_hours: number }
+  type UserRow   = { id: string; name: string; role: string; capacity_hours: number }
 
   const assignmentsByUser: Record<string, AssignmentRow[]> = {}
   for (const a of (allAssignments ?? []) as unknown as AssignmentRow[]) {
@@ -168,7 +169,6 @@ export default async function StaffingPage({
       userId: u.id,
       name: u.name,
       role: u.role,
-      designation: u.designation,
       actualHours,
       capacityHours: weekCount * (u.capacity_hours ?? CAPACITY_PER_WEEK),
       predictedHoursPerWeek,
@@ -209,8 +209,8 @@ export default async function StaffingPage({
         <div className="flex items-center gap-4">
           <span className="text-sm text-teal-100">
             {currentUser?.name ?? user?.email}
-            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs capitalize">
-              {currentUser?.role}
+            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs">
+              {ROLE_DISPLAY[currentUser?.role ?? ''] ?? currentUser?.role ?? ''}
             </span>
           </span>
           <form action={logout}>

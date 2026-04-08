@@ -14,14 +14,6 @@ export async function logHours(data: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  // Pull the employee's real designation from their profile
-  const { data: profile } = await supabase
-    .from('users')
-    .select('designation')
-    .eq('id', user.id)
-    .single()
-  const designation = profile?.designation ?? ''
-
   if (data.leave_type) {
     const { error } = await supabase
       .from('weekly_hours')
@@ -30,7 +22,6 @@ export async function logHours(data: {
         project_id:   null,
         week_start:   data.week_start,
         hours_logged: 8,
-        designation,
         rating:       data.rating,
         leave_type:   data.leave_type,
       })
@@ -43,7 +34,6 @@ export async function logHours(data: {
         project_id:   data.project_id,
         week_start:   data.week_start,
         hours_logged: data.hours,
-        designation,
         rating:       data.rating,
       }, { onConflict: 'user_id,project_id,week_start' })
     if (error) return { error: error.message }
@@ -91,20 +81,11 @@ export async function updateHoursEntry(id: string, data: {
   const cutoff = new Date()
   cutoff.setHours(cutoff.getHours() - 48)
 
-  // Re-fetch designation so it stays in sync with the user's profile
-  const { data: profile } = await supabase
-    .from('users')
-    .select('designation')
-    .eq('id', user.id)
-    .single()
-  const designation = profile?.designation ?? ''
-
   const { error } = await supabase
     .from('weekly_hours')
     .update({
       week_start:   data.week_start,
       project_id:   data.project_id,
-      designation,
       hours_logged: data.hours,
       rating:       data.rating,
       leave_type:   data.leave_type ?? null,

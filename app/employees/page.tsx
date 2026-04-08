@@ -10,6 +10,7 @@ import EmployeeList from '@/components/features/EmployeeList'
 import TimesheetUpload from '@/components/features/TimesheetUpload'
 import UtilizationDownload from '@/components/features/UtilizationDownload'
 import type { Role } from '@/lib/types'
+import { ROLE_DISPLAY } from '@/lib/types'
 
 export default async function EmployeesPage() {
   const supabase = await createClient()
@@ -40,8 +41,8 @@ export default async function EmployeesPage() {
         <div className="flex items-center gap-4">
           <span className="text-sm text-teal-100">
             {currentUser?.name ?? user?.email}
-            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs capitalize">
-              {currentUser?.role}
+            <span className="ml-1.5 px-1.5 py-0.5 bg-teal-600 text-teal-100 rounded text-xs">
+              {ROLE_DISPLAY[currentUser?.role ?? ''] ?? currentUser?.role ?? ''}
             </span>
           </span>
           <form action={logout}>

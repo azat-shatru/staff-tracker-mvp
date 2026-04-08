@@ -1,5 +1,14 @@
 export type Role = 'executive' | 'manager' | 'consultant' | 'analyst' | 'director'
 
+export const ROLE_DISPLAY: Record<string, string> = {
+  executive:  'Executive',
+  manager:    'Manager',
+  consultant: 'Consultant/AC',
+  analyst:    'Analyst',
+  director:   'Director',
+}
+
+
 export type StageType =
   | 'kickoff'
   | 'questionnaire'
@@ -22,7 +31,6 @@ export interface User {
   name: string
   email: string
   role: Role
-  designation: string
   team: string
   reports_to: string | null
   capacity_hours: number

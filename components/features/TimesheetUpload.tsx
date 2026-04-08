@@ -51,10 +51,11 @@ export default function TimesheetUpload() {
       const obj: Record<string, string> = {}
       headers.forEach((h, i) => { obj[h] = values[i] ?? '' })
       return {
-        email:        obj['email'] ?? '',
-        project_name: obj['project_name'] ?? obj['project'] ?? '',
-        week_start:   obj['week_start'] ?? '',
-        hours:        obj['hours'] ?? '',
+        name:    obj['name'] ?? '',
+        week_of: obj['week of'] ?? obj['week_of'] ?? obj['week_start'] ?? '',
+        project: obj['project'] ?? obj['project_name'] ?? '',
+        hours:   obj['hours'] ?? '',
+        rating:  obj['rating'] ?? obj['ratings'] ?? '',
       }
     })
   }

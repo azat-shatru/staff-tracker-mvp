@@ -72,8 +72,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       ? supabase.from('deliverables').select('*').in('stage_id', stageIds).order('expected_at', { ascending: true })
       : Promise.resolve({ data: [] }),
     supabase.from('poc_registry').select('*').eq('project_id', id),
-    supabase.from('users').select('id, name, role, designation').order('name'),
-    supabase.from('assignments').select('*, user:users(id, name, role, designation)').eq('project_id', id),
+    supabase.from('users').select('id, name, role').order('name'),
+    supabase.from('assignments').select('*, user:users(id, name, role)').eq('project_id', id),
   ])
 
   const notesByStage = (allNotes ?? []).reduce((acc: Record<string, Record<string, string>>, note: StageNote) => {
@@ -90,11 +90,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   // Resolve project manager from users list
   const projectManager = project.project_manager_id
-    ? ((allUsers ?? []) as Pick<User, 'id' | 'name' | 'role' | 'designation'>[]).find(u => u.id === project.project_manager_id) ?? null
+    ? ((allUsers ?? []) as Pick<User, 'id' | 'name' | 'role'>[]).find(u => u.id === project.project_manager_id) ?? null
     : null
 
   // Exclude manager from the regular assignments list (they're shown as permanent)
-  const teamAssignments = ((assignments ?? []) as (Assignment & { user: Pick<User, 'id' | 'name' | 'role' | 'designation'> })[])
+  const teamAssignments = ((assignments ?? []) as (Assignment & { user: Pick<User, 'id' | 'name' | 'role'> })[])
     .filter(a => a.user_id !== project.project_manager_id)
 
   // Extract planned delivery dates saved via the timeline editor
@@ -232,7 +232,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                       projectId={id}
                       projectManager={projectManager}
                       assignments={teamAssignments}
-                      users={(allUsers ?? []) as Pick<User, 'id' | 'name' | 'role' | 'designation'>[]}
+                      users={(allUsers ?? []) as Pick<User, 'id' | 'name' | 'role'>[]}
                       canManage={perms.canManagePoc}
                     />
                   </div>
