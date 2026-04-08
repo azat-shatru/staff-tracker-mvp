@@ -409,11 +409,13 @@ function EmployeeForm({
         <div>
           <label className="block text-xs font-medium text-teal-700 mb-1">Reports To</label>
           <select
-            value={form.reports_to} onChange={e => set('reports_to', e.target.value)}
-            className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+            value={form.role === 'executive' ? '' : form.reports_to}
+            onChange={e => set('reports_to', e.target.value)}
+            disabled={form.role === 'executive'}
+            className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-emerald-50 disabled:text-slate-400"
           >
             <option value="">— None —</option>
-            {managers.map(m => (
+            {form.role !== 'executive' && managers.map(m => (
               <option key={m.id} value={m.id}>{m.name} · {ROLE_DISPLAY[m.role] ?? m.role}</option>
             ))}
           </select>
