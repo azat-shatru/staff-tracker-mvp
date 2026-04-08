@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { redirect } from 'next/navigation'
+import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { logout } from '@/app/login/actions'
