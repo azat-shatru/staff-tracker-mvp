@@ -11,7 +11,7 @@ export default function UtilizationDetailView({ data }: { data: UtilizationDetai
 
   const maxHours = Math.max(
     ...(view === 'employee'
-      ? data.byEmployee.map(e => e.totalHours)
+      ? data.byEmployee.map(e => e.effectiveCapacity > 0 ? e.effectiveCapacity : e.totalHours)
       : data.byProject.map(p => p.totalHours)),
     1
   )
@@ -46,7 +46,11 @@ export default function UtilizationDetailView({ data }: { data: UtilizationDetai
           )}
           {data.byEmployee.map(emp => {
             const isExpanded = expandedUser === emp.userId
-            const barW = `${Math.round((emp.totalHours / maxHours) * 100)}%`
+            const utilPct  = emp.effectiveCapacity > 0 ? Math.round((emp.totalHours / emp.effectiveCapacity) * 100) : 0
+            const barW     = emp.effectiveCapacity > 0
+              ? `${Math.min(utilPct, 100)}%`
+              : `${Math.round((emp.totalHours / maxHours) * 100)}%`
+            const barColor = utilPct >= 90 ? 'bg-red-400' : utilPct >= 75 ? 'bg-amber-400' : 'bg-teal-400'
 
             return (
               <div key={emp.userId} className="bg-white rounded-lg border overflow-hidden">
@@ -67,15 +71,24 @@ export default function UtilizationDetailView({ data }: { data: UtilizationDetai
                         <span className="text-xs text-slate-400">
                           {emp.projects.length} project{emp.projects.length !== 1 ? 's' : ''}
                         </span>
-                        <span className="text-base font-bold text-teal-900">
-                          {emp.totalHours.toFixed(1)}h
+                        {emp.effectiveCapacity > 0 && (
+                          <span className="text-xs text-slate-400">
+                            {emp.totalHours.toFixed(1)}h / {emp.effectiveCapacity.toFixed(0)}h
+                          </span>
+                        )}
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                          utilPct >= 90 ? 'bg-red-100 text-red-700' :
+                          utilPct >= 75 ? 'bg-amber-100 text-amber-700' :
+                          'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {utilPct}%
                         </span>
                         <span className="text-xs text-slate-300">{isExpanded ? '▲' : '▼'}</span>
                       </div>
                     </div>
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-teal-400 rounded-full transition-all"
+                        className={`h-full ${barColor} rounded-full transition-all`}
                         style={{ width: barW }}
                       />
                     </div>

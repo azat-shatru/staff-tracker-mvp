@@ -3,11 +3,12 @@
 import { createClient } from '@/lib/supabase/server'
 
 export type EmployeeDetail = {
-  userId:     string
-  name:       string
-  role:       string
-  totalHours: number
-  projects:   { projectId: string; name: string; hours: number }[]
+  userId:            string
+  name:              string
+  role:              string
+  totalHours:        number
+  effectiveCapacity: number   // active weeks × capacity_hours − leave hours
+  projects:          { projectId: string; name: string; hours: number }[]
 }
 
 export type ProjectDetail = {
@@ -52,19 +53,49 @@ export async function fetchUtilizationDetail(
     periodLabel = String(ref.getFullYear())
   }
 
-  const { data: rows, error } = await supabase
-    .from('weekly_hours')
-    .select('user_id, project_id, hours_logged, users(id, name, role), projects(id, name)')
-    .gte('week_start', startDate)
-    .lte('week_start', endDate)
-    .is('leave_type', null)   // work hours only
+  const [
+    { data: rows,      error },
+    { data: leaveRows         },
+    { data: userCapRows       },
+  ] = await Promise.all([
+    supabase
+      .from('weekly_hours')
+      .select('user_id, project_id, hours_logged, week_start, users(id, name, role), projects(id, name)')
+      .gte('week_start', startDate)
+      .lte('week_start', endDate)
+      .is('leave_type', null),
+    supabase
+      .from('weekly_hours')
+      .select('user_id, hours_logged, week_start')
+      .gte('week_start', startDate)
+      .lte('week_start', endDate)
+      .not('leave_type', 'is', null),
+    supabase
+      .from('users')
+      .select('id, capacity_hours')
+      .in('role', ['analyst', 'consultant']),
+  ])
 
   if (error) return { error: error.message }
+
+  // Per-user capacity and leave tracking
+  const capacityByUser: Record<string, number> = {}
+  for (const u of userCapRows ?? []) capacityByUser[u.id] = u.capacity_hours ?? 40
+
+  const leaveHoursMap:  Record<string, number>      = {}
+  const activeWeeksMap: Record<string, Set<string>> = {}
+
+  for (const l of leaveRows ?? []) {
+    leaveHoursMap[l.user_id] = (leaveHoursMap[l.user_id] ?? 0) + l.hours_logged
+    if (!activeWeeksMap[l.user_id]) activeWeeksMap[l.user_id] = new Set()
+    activeWeeksMap[l.user_id].add(l.week_start)
+  }
 
   type Row = {
     user_id:      string
     project_id:   string | null
     hours_logged: number
+    week_start:   string
     users:        { id: string; name: string; role: string } | null
     projects:     { id: string; name: string } | null
   }
@@ -81,7 +112,10 @@ export async function fetchUtilizationDetail(
     const uName  = raw.users?.name ?? 'Unknown'
     const pName  = raw.projects?.name ?? 'No project'
 
-    if (!empMap[uid]) empMap[uid] = { userId: uid, name: uName, role: uRole, totalHours: 0, projects: [] }
+    if (!activeWeeksMap[uid]) activeWeeksMap[uid] = new Set()
+    activeWeeksMap[uid].add(raw.week_start)
+
+    if (!empMap[uid]) empMap[uid] = { userId: uid, name: uName, role: uRole, totalHours: 0, effectiveCapacity: 0, projects: [] }
     empMap[uid].totalHours += hours
     const ep = empMap[uid].projects.find(p => p.projectId === pid)
     if (ep) { ep.hours += hours }
@@ -89,6 +123,13 @@ export async function fetchUtilizationDetail(
 
     if (!projMap[pid]) projMap[pid] = { projectId: pid, name: pName, totalHours: 0 }
     projMap[pid].totalHours += hours
+  }
+
+  // Compute effective capacity per employee
+  for (const uid of Object.keys(empMap)) {
+    const activeWeeks = activeWeeksMap[uid]?.size ?? 0
+    const leaveHours  = leaveHoursMap[uid] ?? 0
+    empMap[uid].effectiveCapacity = Math.max(activeWeeks * (capacityByUser[uid] ?? 40) - leaveHours, 0)
   }
 
   const byEmployee = Object.values(empMap).sort((a, b) => b.totalHours - a.totalHours)
