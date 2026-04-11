@@ -148,9 +148,10 @@ export default async function DashboardPage() {
   const allUserIds = Object.keys(userCapacity)
 
   // Build per-week buckets
-  const weekBuckets: Record<string, { workHours: number; leaveByUser: Record<string, number> }> = {}
+  const weekBuckets: Record<string, { workHours: number; leaveByUser: Record<string, number>; activeUsers: Set<string> }> = {}
   for (const h of (prevWeekHours ?? []) as HoursRow[]) {
-    if (!weekBuckets[h.week_start]) weekBuckets[h.week_start] = { workHours: 0, leaveByUser: {} }
+    if (!weekBuckets[h.week_start]) weekBuckets[h.week_start] = { workHours: 0, leaveByUser: {}, activeUsers: new Set() }
+    weekBuckets[h.week_start].activeUsers.add(h.user_id)
     if (h.leave_type) {
       weekBuckets[h.week_start].leaveByUser[h.user_id] = (weekBuckets[h.week_start].leaveByUser[h.user_id] ?? 0) + h.hours_logged
     } else {
@@ -162,7 +163,10 @@ export default async function DashboardPage() {
     const bucket = weekBuckets[weekStr]
     const workHours = bucket?.workHours ?? 0
     const leaveByUser = bucket?.leaveByUser ?? {}
+    const activeUsers = bucket?.activeUsers ?? new Set<string>()
+    // Only count capacity for users who have at least one entry (work or leave) that week
     const totalEffCap = allUserIds.reduce((sum, uid) => {
+      if (!activeUsers.has(uid)) return sum
       const leaveHours = leaveByUser[uid] ?? 0
       return sum + Math.max((userCapacity[uid] ?? 40) - leaveHours, 0)
     }, 0)
