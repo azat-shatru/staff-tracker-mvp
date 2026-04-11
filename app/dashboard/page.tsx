@@ -152,7 +152,7 @@ export default async function DashboardPage() {
   for (const h of (prevWeekHours ?? []) as HoursRow[]) {
     if (!weekBuckets[h.week_start]) weekBuckets[h.week_start] = { workHours: 0, leaveByUser: {} }
     if (h.leave_type) {
-      weekBuckets[h.week_start].leaveByUser[h.user_id] = (weekBuckets[h.week_start].leaveByUser[h.user_id] ?? 0) + 1
+      weekBuckets[h.week_start].leaveByUser[h.user_id] = (weekBuckets[h.week_start].leaveByUser[h.user_id] ?? 0) + h.hours_logged
     } else {
       weekBuckets[h.week_start].workHours += h.hours_logged
     }
@@ -163,8 +163,8 @@ export default async function DashboardPage() {
     const workHours = bucket?.workHours ?? 0
     const leaveByUser = bucket?.leaveByUser ?? {}
     const totalEffCap = allUserIds.reduce((sum, uid) => {
-      const leaveDays = leaveByUser[uid] ?? 0
-      return sum + Math.max((userCapacity[uid] ?? 40) - leaveDays * 8, 0)
+      const leaveHours = leaveByUser[uid] ?? 0
+      return sum + Math.max((userCapacity[uid] ?? 40) - leaveHours, 0)
     }, 0)
     const pct = totalEffCap > 0 ? Math.round((workHours / totalEffCap) * 100) : 0
     return { pct, workHours, totalEffCap }
