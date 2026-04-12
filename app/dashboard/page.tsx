@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { logout } from '@/app/login/actions'
 import { Button } from '@/components/ui/button'
 import NewProjectModal from '@/components/features/NewProjectModal'
+import ProjectList from '@/components/features/ProjectList'
 import Link from 'next/link'
 import { getPermissions } from '@/lib/permissions'
 import { weekStart, toDateStr, buildStageTimeline } from '@/lib/utilization'
@@ -12,50 +13,25 @@ import DashboardInsights from '@/components/features/DashboardInsights'
 import type { Project, Role } from '@/lib/types'
 import { ROLE_DISPLAY } from '@/lib/types'
 
-const STATUS_STYLES: Record<string, string> = {
-  active:   'bg-green-100 text-green-700',
-  on_hold:  'bg-yellow-100 text-yellow-700',
-  complete: 'bg-blue-100 text-blue-700',
-  archived: 'bg-emerald-100 text-slate-500',
-}
-
-function formatDate(date: string | null) {
-  if (!date) return '—'
-  return new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-type EfficiencyStatus =
-  | { label: 'On Track';         style: string }
-  | { label: 'At Risk';          style: string }
-  | { label: 'Overdue';          style: string }
-  | { label: 'Delivered On Time'; style: string }
-  | { label: 'Delivered Late';   style: string }
-  | null
-
 function getEfficiency(
   project: Project,
   reportingCompletedAt: string | null
-): EfficiencyStatus {
+) {
   if (!project.target_delivery_date) return null
 
   const target = new Date(project.target_delivery_date)
   const today  = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Completed project — compare reporting completion to target
   if (project.status === 'complete' || project.status === 'archived') {
     if (!reportingCompletedAt) return null
     const completed = new Date(reportingCompletedAt)
-    return completed <= target
-      ? { label: 'Delivered On Time', style: 'bg-green-100 text-green-700' }
-      : { label: 'Delivered Late',    style: 'bg-red-100 text-red-700' }
+    return completed <= target ? 'on_time' : 'late'
   }
 
-  // Active / on_hold — compare today to target
   const daysLeft = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-  if (daysLeft < 0)  return { label: 'Overdue',  style: 'bg-red-100 text-red-700' }
-  if (daysLeft <= 7) return { label: 'At Risk',   style: 'bg-orange-100 text-orange-700' }
-  return               { label: 'On Track',       style: 'bg-emerald-100 text-emerald-700' }
+  if (daysLeft < 0)  return 'overdue'
+  return 'ok'
 }
 
 export default async function DashboardPage() {
@@ -77,6 +53,8 @@ export default async function DashboardPage() {
   prevMonday.setDate(prevMonday.getDate() - 7)
   const prevWeekStr  = toDateStr(prevMonday)
 
+  const thisWeekStr = toDateStr(thisMonday)
+
   const [
     { data: projects },
     { data: allUsers },
@@ -85,6 +63,7 @@ export default async function DashboardPage() {
     { data: prevWeekHours },
     { data: allStages },
     { data: allStageNotes },
+    { data: recentHours },
   ] = await Promise.all([
     supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(500),
     supabase.from('users').select('id, name, role, capacity_hours').in('role', ['analyst', 'consultant']).order('name').limit(500),
@@ -110,6 +89,11 @@ export default async function DashboardPage() {
       .from('stage_notes')
       .select('stage_id, value')
       .eq('field_key', 'expected_hours_per_week'),
+    // Users who logged hours in the last 7 days (prev week + current week)
+    supabase
+      .from('weekly_hours')
+      .select('user_id')
+      .gte('week_start', prevWeekStr),
   ])
 
   // Map project_id → reporting completed_at
@@ -135,6 +119,28 @@ export default async function DashboardPage() {
       membersByProject[a.project_id].push(a)
     }
   }
+
+  // ── Recent vs older projects ────────────────────────────────────────────────
+  // "Recent" = created in the last 7 days OR any assigned user logged hours
+  // in the current week or the previous week
+  const usersActiveLastWeek = new Set(
+    (recentHours ?? []).map((h: { user_id: string }) => h.user_id)
+  )
+  const projectsWithRecentActivity = new Set(
+    (allAssignments ?? [])
+      .filter((a: { user_id: string }) => usersActiveLastWeek.has(a.user_id))
+      .map((a: { project_id: string }) => a.project_id)
+  )
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const sevenDaysAgoStr = sevenDaysAgo.toISOString()
+
+  const recentProjects = (projects ?? []).filter(
+    (p: Project) => projectsWithRecentActivity.has(p.id) || p.created_at >= sevenDaysAgoStr
+  )
+  const olderProjects = (projects ?? []).filter(
+    (p: Project) => !projectsWithRecentActivity.has(p.id) && p.created_at < sevenDaysAgoStr
+  )
 
   // ── Utilization — past 12 weeks ──────────────────────────────────────────────
   type UserWithCap = { id: string; name: string; role: string; capacity_hours: number | null }
@@ -257,19 +263,17 @@ export default async function DashboardPage() {
   const completedProjects = (projects ?? []).filter(
     (p: Project) => (p.status === 'complete' || p.status === 'archived') && p.target_delivery_date
   )
-  const onTimeCount = completedProjects.filter((p: Project) => {
-    const eff = getEfficiency(p, reportingDoneAt[p.id] ?? null)
-    return eff?.label === 'Delivered On Time'
-  }).length
+  const onTimeCount = completedProjects.filter((p: Project) =>
+    getEfficiency(p, reportingDoneAt[p.id] ?? null) === 'on_time'
+  ).length
   const efficiencyRate = completedProjects.length > 0
     ? Math.round((onTimeCount / completedProjects.length) * 100)
     : null
 
   const activeProjects  = (projects ?? []).filter((p: Project) => p.status === 'active').length
-  const overdueProjects = (projects ?? []).filter((p: Project) => {
-    const eff = getEfficiency(p, reportingDoneAt[p.id] ?? null)
-    return eff?.label === 'Overdue'
-  }).length
+  const overdueProjects = (projects ?? []).filter((p: Project) =>
+    getEfficiency(p, reportingDoneAt[p.id] ?? null) === 'overdue'
+  ).length
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -359,54 +363,12 @@ export default async function DashboardPage() {
                 <p className="text-sm">No projects yet. Create your first project to get started.</p>
               </div>
             ) : (
-              <div className="bg-white rounded-lg border divide-y">
-                {(projects as Project[]).map(project => {
-                  const eff = getEfficiency(project, reportingDoneAt[project.id] ?? null)
-                  const members = membersByProject[project.id] ?? []
-                  const SHOW = 3
-                  return (
-                    <Link
-                      key={project.id}
-                      href={`/projects/${project.id}`}
-                      className="flex items-center justify-between px-5 py-4 hover:bg-emerald-50 transition-colors"
-                    >
-                      <div className="flex flex-col gap-1.5">
-                        <span className="font-medium text-teal-900">{project.name}</span>
-                        <span className="text-sm text-slate-500">{project.client} · {project.project_type}</span>
-                        {members.length > 0 && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {members.slice(0, SHOW).map(m => (
-                              <span
-                                key={m.user_id}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 rounded text-xs text-teal-700"
-                                title={`${m.role_label || (ROLE_DISPLAY[m.user?.role ?? ''] ?? m.user?.role ?? '')} · ${m.allocation_pct}%`}
-                              >
-                                {m.user?.name ?? '—'}
-                                <span className="text-slate-400">{m.allocation_pct}%</span>
-                              </span>
-                            ))}
-                            {members.length > SHOW && (
-                              <span className="text-xs text-slate-400">+{members.length - SHOW} more</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-slate-500 shrink-0 ml-4">
-                        <span className="text-xs">Kickoff: {formatDate(project.kickoff_date)}</span>
-                        <span className="text-xs">Delivery: {formatDate(project.target_delivery_date)}</span>
-                        {eff && (
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${eff.style}`}>
-                            {eff.label}
-                          </span>
-                        )}
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[project.status]}`}>
-                          {project.status.replace('_', ' ')}
-                        </span>
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
+              <ProjectList
+                recentProjects={recentProjects as Project[]}
+                olderProjects={olderProjects as Project[]}
+                membersByProject={membersByProject}
+                reportingDoneAt={reportingDoneAt}
+              />
             )}
           </div>
 
