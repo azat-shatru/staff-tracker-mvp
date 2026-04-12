@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { logout } from '@/app/login/actions'
 import { Button } from '@/components/ui/button'
-import NewProjectModal from '@/components/features/NewProjectModal'
 import ProjectList from '@/components/features/ProjectList'
 import Link from 'next/link'
 import { getPermissions } from '@/lib/permissions'
@@ -348,25 +347,14 @@ export default async function DashboardPage() {
           </div>
 
           {/* Projects list */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xl font-semibold text-teal-900">Projects</h2>
-              {perms.canCreateProject && <NewProjectModal users={allUsers ?? []} />}
-            </div>
-
-            {!projects || projects.length === 0 ? (
-              <div className="bg-white rounded-lg border p-12 text-center text-slate-400">
-                <p className="text-sm">No projects yet. Create your first project to get started.</p>
-              </div>
-            ) : (
-              <ProjectList
-                recentProjects={recentProjects as Project[]}
-                olderProjects={olderProjects as Project[]}
-                membersByProject={membersByProject}
-                reportingDoneAt={reportingDoneAt}
-              />
-            )}
-          </div>
+          <ProjectList
+            recentProjects={recentProjects as Project[]}
+            olderProjects={olderProjects as Project[]}
+            membersByProject={membersByProject}
+            reportingDoneAt={reportingDoneAt}
+            canCreateProject={perms.canCreateProject}
+            users={allUsers ?? []}
+          />
 
         </div>
       </main>

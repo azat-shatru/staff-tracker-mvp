@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import type { Project } from '@/lib/types'
+import type { Project, User } from '@/lib/types'
 import { ROLE_DISPLAY } from '@/lib/types'
+import NewProjectModal from '@/components/features/NewProjectModal'
 
 const STATUS_STYLES: Record<string, string> = {
   active:   'bg-green-100 text-green-700',
@@ -58,6 +59,8 @@ type ProjectListProps = {
   olderProjects:  Project[]
   membersByProject: Record<string, MemberRow[]>
   reportingDoneAt:  Record<string, string>
+  canCreateProject: boolean
+  users: Pick<User, 'id' | 'name' | 'role'>[]
 }
 
 const SHOW = 3
@@ -122,49 +125,88 @@ export default function ProjectList({
   olderProjects,
   membersByProject,
   reportingDoneAt,
+  canCreateProject,
+  users,
 }: ProjectListProps) {
   const [showOlder, setShowOlder] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const allProjects = [...recentProjects, ...olderProjects]
+  const isSearching = query.trim().length > 0
+
+  const searchResults = isSearching
+    ? allProjects.filter(p => {
+        const q = query.toLowerCase()
+        return (
+          p.name.toLowerCase().includes(q) ||
+          p.client.toLowerCase().includes(q) ||
+          p.project_type.toLowerCase().includes(q)
+        )
+      })
+    : null
 
   const hasOlder = olderProjects.length > 0
 
   return (
-    <div className="bg-white rounded-lg border divide-y">
-      {recentProjects.length === 0 && !hasOlder && (
-        <div className="p-12 text-center text-slate-400">
+    <div>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <h2 className="text-xl font-semibold text-teal-900 shrink-0">Projects</h2>
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <div className="relative w-56">
+            <svg
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search projects…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {canCreateProject && <NewProjectModal users={users} />}
+        </div>
+      </div>
+
+      {/* Project tiles */}
+      {allProjects.length === 0 ? (
+        <div className="bg-white rounded-lg border p-12 text-center text-slate-400">
           <p className="text-sm">No projects yet. Create your first project to get started.</p>
         </div>
-      )}
-
-      {recentProjects.map(project => (
-        <ProjectTile
-          key={project.id}
-          project={project}
-          membersByProject={membersByProject}
-          reportingDoneAt={reportingDoneAt}
-        />
-      ))}
-
-      {hasOlder && (
-        <>
-          <button
-            onClick={() => setShowOlder(v => !v)}
-            className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
-          >
-            <span className="text-sm text-slate-500">
-              {olderProjects.length} older project{olderProjects.length !== 1 ? 's' : ''} — no activity this week
-            </span>
-            <span className="text-sm font-medium text-teal-600 flex items-center gap-1">
-              {showOlder ? 'Collapse' : 'Show all'}
-              <svg
-                className={`w-4 h-4 transition-transform ${showOlder ? 'rotate-180' : ''}`}
-                fill="none" stroke="currentColor" viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </span>
-          </button>
-
-          {showOlder && olderProjects.map(project => (
+      ) : isSearching ? (
+        <div className="bg-white rounded-lg border divide-y">
+          {searchResults!.length === 0 ? (
+            <div className="p-8 text-center text-slate-400">
+              <p className="text-sm">No projects match &ldquo;{query}&rdquo;</p>
+            </div>
+          ) : (
+            searchResults!.map(project => (
+              <ProjectTile
+                key={project.id}
+                project={project}
+                membersByProject={membersByProject}
+                reportingDoneAt={reportingDoneAt}
+              />
+            ))
+          )}
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg border divide-y">
+          {recentProjects.map(project => (
             <ProjectTile
               key={project.id}
               project={project}
@@ -172,7 +214,38 @@ export default function ProjectList({
               reportingDoneAt={reportingDoneAt}
             />
           ))}
-        </>
+
+          {hasOlder && (
+            <>
+              <button
+                onClick={() => setShowOlder(v => !v)}
+                className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+              >
+                <span className="text-sm text-slate-500">
+                  {olderProjects.length} older project{olderProjects.length !== 1 ? 's' : ''} — no activity this week
+                </span>
+                <span className="text-sm font-medium text-teal-600 flex items-center gap-1">
+                  {showOlder ? 'Collapse' : 'Show all'}
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showOlder ? 'rotate-180' : ''}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </span>
+              </button>
+
+              {showOlder && olderProjects.map(project => (
+                <ProjectTile
+                  key={project.id}
+                  project={project}
+                  membersByProject={membersByProject}
+                  reportingDoneAt={reportingDoneAt}
+                />
+              ))}
+            </>
+          )}
+        </div>
       )}
     </div>
   )
