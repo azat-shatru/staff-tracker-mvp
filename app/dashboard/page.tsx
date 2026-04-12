@@ -55,6 +55,10 @@ export default async function DashboardPage() {
 
   const thisWeekStr = toDateStr(thisMonday)
 
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const sevenDaysAgoStr = sevenDaysAgo.toISOString()
+
   const [
     { data: projects },
     { data: allUsers },
@@ -89,11 +93,11 @@ export default async function DashboardPage() {
       .from('stage_notes')
       .select('stage_id, value')
       .eq('field_key', 'expected_hours_per_week'),
-    // Users who logged hours in the last 7 days (prev week + current week)
+    // Project stages started or completed in the last 7 days
     supabase
-      .from('weekly_hours')
-      .select('user_id')
-      .gte('week_start', prevWeekStr),
+      .from('project_stages')
+      .select('project_id')
+      .or(`started_at.gte.${sevenDaysAgoStr},completed_at.gte.${sevenDaysAgoStr}`),
   ])
 
   // Map project_id → reporting completed_at
@@ -121,19 +125,11 @@ export default async function DashboardPage() {
   }
 
   // ── Recent vs older projects ────────────────────────────────────────────────
-  // "Recent" = created in the last 7 days OR any assigned user logged hours
-  // in the current week or the previous week
-  const usersActiveLastWeek = new Set(
-    (recentHours ?? []).map((h: { user_id: string }) => h.user_id)
-  )
+  // "Recent" = created in the last 7 days OR has a project stage that was
+  // updated (started/completed) in the last 7 days
   const projectsWithRecentActivity = new Set(
-    (allAssignments ?? [])
-      .filter((a: { user_id: string }) => usersActiveLastWeek.has(a.user_id))
-      .map((a: { project_id: string }) => a.project_id)
+    (recentHours ?? []).map((s: { project_id: string }) => s.project_id)
   )
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-  const sevenDaysAgoStr = sevenDaysAgo.toISOString()
 
   const recentProjects = (projects ?? []).filter(
     (p: Project) => projectsWithRecentActivity.has(p.id) || p.created_at >= sevenDaysAgoStr
