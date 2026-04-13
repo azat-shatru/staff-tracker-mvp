@@ -282,9 +282,11 @@ export default async function DashboardPage() {
                   Staffing Matrix
                 </Link>
               )}
-              <Link href="/team" className="text-sm text-teal-100 hover:text-white transition-colors">
-                Team Overview
-              </Link>
+              {perms.canViewUtilization && (
+                <Link href="/team" className="text-sm text-teal-100 hover:text-white transition-colors">
+                  Team Overview
+                </Link>
+              )}
               <Link href="/employees" className="text-sm text-teal-100 hover:text-white transition-colors">
                 Employees
               </Link>
@@ -308,7 +310,7 @@ export default async function DashboardPage() {
         <div className="max-w-5xl mx-auto space-y-5">
 
           {/* ── Utilization dial + projected histogram ─────────── */}
-          {perms.canViewUtilization && (
+          {perms.canViewUtilizationSummary && (
             <DashboardInsights
               lastWeekUtil={lastWeekUtil}
               pastWeeklyUtil={pastWeeklyUtil}

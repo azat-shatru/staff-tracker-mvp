@@ -16,15 +16,18 @@ export function getPermissions(role: Role | undefined) {
     }
   }
   return {
-    canCreateProject:    role === 'manager',
-    canManagePoc:        role === 'manager',
-    canTransitionStage:  role === 'manager' || role === 'consultant',
-    canRemoveStage:      role === 'manager',
-    canEditNotes:        role === 'manager' || role === 'consultant' || role === 'analyst',
-    canToggleMilestone:  role === 'manager' || role === 'consultant' || role === 'analyst',
-    canViewAllProjects:  role === 'manager' || role === 'consultant' || role === 'director' || role === 'executive',
-    canManageEmployees:  role === 'manager' || role === 'director' || role === 'executive',
-    canViewUtilization:  role === 'manager' || role === 'director' || role === 'executive',
-    isReadOnly:          role === 'director',
+    canCreateProject:          role === 'manager',
+    canManagePoc:              role === 'manager',
+    canTransitionStage:        role === 'manager' || role === 'consultant',
+    canRemoveStage:            role === 'manager',
+    canEditNotes:              role === 'manager' || role === 'consultant' || role === 'analyst',
+    canToggleMilestone:        role === 'manager' || role === 'consultant' || role === 'analyst',
+    canViewAllProjects:        role === 'manager' || role === 'consultant' || role === 'analyst' || role === 'director' || role === 'executive',
+    canManageEmployees:        role === 'manager' || role === 'director' || role === 'executive',
+    // Summary widget on dashboard (no drill-down for analyst)
+    canViewUtilizationSummary: role === 'manager' || role === 'analyst' || role === 'director' || role === 'executive',
+    // Full utilization: drill-down, staffing matrix, team workload
+    canViewUtilization:        role === 'manager' || role === 'director' || role === 'executive',
+    isReadOnly:                role === 'director',
   }
 }

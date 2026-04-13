@@ -34,6 +34,7 @@ export default async function TeamPage() {
     .single()
 
   const perms = getPermissions(currentUser?.role as Role | undefined)
+  if (!perms.canViewUtilization) redirect('/dashboard')
 
   const [
     { data: allUsers },
