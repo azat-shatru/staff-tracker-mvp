@@ -198,18 +198,14 @@ create policy "Users can update own profile"  on public.users for update using (
 create policy "Service role can insert users" on public.users for insert with check (true);
 
 -- Projects
-drop policy if exists "Privileged roles see all projects" on public.projects;
-drop policy if exists "Analysts see assigned projects"    on public.projects;
-drop policy if exists "Managers can insert projects"      on public.projects;
-drop policy if exists "Managers can update projects"      on public.projects;
-create policy "Privileged roles see all projects" on public.projects
-  for select using (
-    exists (select 1 from public.users where id = auth.uid() and role in ('executive', 'manager', 'director', 'consultant'))
-  );
-create policy "Analysts see assigned projects" on public.projects
-  for select using (
-    exists (select 1 from public.assignments where project_id = projects.id and user_id = auth.uid())
-  );
+drop policy if exists "Privileged roles see all projects"    on public.projects;
+drop policy if exists "Analysts see assigned projects"        on public.projects;
+drop policy if exists "Authenticated users see all projects"  on public.projects;
+drop policy if exists "Managers can insert projects"          on public.projects;
+drop policy if exists "Managers can update projects"          on public.projects;
+-- All authenticated users can see all projects (everyone needs to log hours against any project)
+create policy "Authenticated users see all projects" on public.projects
+  for select using (auth.uid() is not null);
 create policy "Managers can insert projects" on public.projects
   for insert with check (
     exists (select 1 from public.users where id = auth.uid() and role in ('executive', 'manager'))
