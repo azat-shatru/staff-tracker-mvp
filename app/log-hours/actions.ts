@@ -27,16 +27,33 @@ export async function logHours(data: {
       })
     if (error) return { error: error.message }
   } else {
-    const { error } = await supabase
+    // Check if an entry already exists for this user/project/week
+    const { data: existing } = await supabase
       .from('weekly_hours')
-      .upsert({
-        user_id:      user.id,
-        project_id:   data.project_id,
-        week_start:   data.week_start,
-        hours_logged: data.hours,
-        rating:       data.rating,
-      }, { onConflict: 'user_id,project_id,week_start' })
-    if (error) return { error: error.message }
+      .select('id')
+      .eq('user_id',    user.id)
+      .eq('project_id', data.project_id!)
+      .eq('week_start', data.week_start)
+      .maybeSingle()
+
+    if (existing) {
+      const { error } = await supabase
+        .from('weekly_hours')
+        .update({ hours_logged: data.hours, rating: data.rating })
+        .eq('id', existing.id)
+      if (error) return { error: error.message }
+    } else {
+      const { error } = await supabase
+        .from('weekly_hours')
+        .insert({
+          user_id:      user.id,
+          project_id:   data.project_id,
+          week_start:   data.week_start,
+          hours_logged: data.hours,
+          rating:       data.rating,
+        })
+      if (error) return { error: error.message }
+    }
   }
 
   revalidatePath('/staffing')
