@@ -27,10 +27,11 @@ export default async function LogHoursPage() {
   const [
     { data: projects },
     { data: recentRaw },
+    { data: recentLogRaw },
   ] = await Promise.all([
     supabase
       .from('projects')
-      .select('id, name, status')
+      .select('id, name, status, created_at')
       .in('status', ['active', 'on_hold', 'complete'])
       .order('name'),
     supabase
@@ -39,7 +40,25 @@ export default async function LogHoursPage() {
       .eq('user_id', user.id)
       .gte('entry_date', cutoff.toISOString())
       .order('entry_date', { ascending: false }),
+    // Recent project activity for this user — used to sort the dropdown
+    supabase
+      .from('weekly_hours')
+      .select('project_id, week_start')
+      .eq('user_id', user.id)
+      .not('project_id', 'is', null)
+      .order('week_start', { ascending: false })
+      .limit(100),
   ])
+
+  // Deduplicate: ordered list of project_ids this user logged recently (most recent first)
+  const seenIds = new Set<string>()
+  const recentProjectIds: string[] = []
+  for (const row of (recentLogRaw ?? []) as { project_id: string; week_start: string }[]) {
+    if (!seenIds.has(row.project_id)) {
+      seenIds.add(row.project_id)
+      recentProjectIds.push(row.project_id)
+    }
+  }
 
   // Flatten the project join
   const recentEntries: RecentEntry[] = (recentRaw ?? []).map((r: {
@@ -57,7 +76,7 @@ export default async function LogHoursPage() {
     project_name: (Array.isArray(r.project) ? r.project[0]?.name : r.project?.name) ?? null,
   }))
 
-  const projectList = (projects ?? []).map(p => ({ id: p.id, name: p.name, status: p.status }))
+  const projectList = (projects ?? []).map(p => ({ id: p.id, name: p.name, status: p.status, created_at: p.created_at as string }))
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -90,7 +109,7 @@ export default async function LogHoursPage() {
           <div className="bg-white rounded-lg border p-6">
             <h2 className="text-base font-semibold text-teal-900 mb-1">Log hours for last week</h2>
             <p className="text-sm text-slate-500 mb-5">Record your work hours for a specific project and week.</p>
-            <LogHoursForm projects={projectList} />
+            <LogHoursForm projects={projectList} recentProjectIds={recentProjectIds} />
           </div>
 
         </div>

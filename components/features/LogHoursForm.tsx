@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { logHours } from '@/app/log-hours/actions'
 
@@ -10,8 +10,132 @@ const PAID_LEAVE_KEY = '__paid_leave__'
 const SICK_LEAVE_KEY = '__sick_leave__'
 const LEAVE_KEYS     = [PAID_LEAVE_KEY, SICK_LEAVE_KEY]
 
-interface Project { id: string; name: string; status: string }
-interface Props    { projects: Project[] }
+interface Project { id: string; name: string; status: string; created_at: string }
+interface Props    { projects: Project[]; recentProjectIds: string[] }
+
+// ── Searchable project dropdown ──────────────────────────────────────────────
+type DropdownOption = { key: string; label: string; group: 'leave' | 'recent' | 'new' | 'other' }
+
+function ProjectDropdown({
+  options,
+  value,
+  onChange,
+}: {
+  options: DropdownOption[]
+  value: string
+  onChange: (key: string) => void
+}) {
+  const [open, setOpen]     = useState(false)
+  const [search, setSearch] = useState('')
+  const containerRef        = useRef<HTMLDivElement>(null)
+  const inputRef            = useRef<HTMLInputElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [])
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
+
+  const q = search.toLowerCase()
+  const filtered = q
+    ? options.filter(o => o.label.toLowerCase().includes(q))
+    : options
+
+  const GROUP_LABELS: Record<string, string> = {
+    leave:  'Leave',
+    recent: 'Recently logged',
+    new:    'Recently added',
+    other:  'All projects',
+  }
+
+  // Group filtered options
+  const groups = (['leave', 'recent', 'new', 'other'] as const)
+    .map(g => ({ group: g, items: filtered.filter(o => o.group === g) }))
+    .filter(g => g.items.length > 0)
+
+  const selectedLabel = options.find(o => o.key === value)?.label ?? ''
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white dark:bg-slate-800 dark:border-slate-600"
+      >
+        <span className={selectedLabel ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}>
+          {selectedLabel || '— Select project —'}
+        </span>
+        <svg className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div className="absolute z-50 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md shadow-lg mt-1 max-h-72 flex flex-col">
+          {/* Search input */}
+          <div className="p-2 border-b border-slate-100 dark:border-slate-700 shrink-0">
+            <div className="relative">
+              <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              </svg>
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder="Search…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-7 pr-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+          </div>
+
+          {/* Options list */}
+          <div className="overflow-y-auto">
+            {groups.length === 0 ? (
+              <p className="px-3 py-4 text-sm text-slate-400 text-center">No projects match &ldquo;{search}&rdquo;</p>
+            ) : (
+              groups.map(({ group, items }) => (
+                <div key={group}>
+                  {/* Only show group headers when not searching */}
+                  {!q && (
+                    <div className="px-3 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wide bg-slate-50 dark:bg-slate-700/50 sticky top-0">
+                      {GROUP_LABELS[group]}
+                    </div>
+                  )}
+                  {items.map(o => (
+                    <button
+                      key={o.key}
+                      type="button"
+                      onClick={() => { onChange(o.key); setOpen(false); setSearch('') }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 dark:hover:bg-teal-800/40 transition-colors ${
+                        value === o.key ? 'bg-emerald-100 dark:bg-teal-700/50 text-teal-800 dark:text-teal-200 font-medium' : 'text-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function prevWeekMonday(): string {
   const d   = new Date()
@@ -21,7 +145,7 @@ function prevWeekMonday(): string {
   return d.toISOString().split('T')[0]
 }
 
-export default function LogHoursForm({ projects }: Props) {
+export default function LogHoursForm({ projects, recentProjectIds }: Props) {
   const router = useRouter()
   const [form, setForm] = useState({
     week_start:  prevWeekMonday(),
@@ -34,6 +158,44 @@ export default function LogHoursForm({ projects }: Props) {
   const [success, setSuccess] = useState(false)
 
   const isLeave = LEAVE_KEYS.includes(form.project_key)
+
+  // Build sorted + grouped dropdown options
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString()
+
+  const recentSet = new Set(recentProjectIds)
+  const dropdownOptions: DropdownOption[] = [
+    { key: PAID_LEAVE_KEY, label: 'Paid Leave (8h deducted from capacity)', group: 'leave' },
+    { key: SICK_LEAVE_KEY, label: 'Sick Leave (8h deducted from capacity)', group: 'leave' },
+    // Recently logged — in order of most recent first
+    ...recentProjectIds
+      .map(id => projects.find(p => p.id === id))
+      .filter((p): p is Project => !!p)
+      .map(p => ({
+        key:   p.id,
+        label: p.name + (p.status !== 'active' ? ` (${p.status.replace('_', ' ')})` : ''),
+        group: 'recent' as const,
+      })),
+    // Newly added projects not already in recent
+    ...projects
+      .filter(p => !recentSet.has(p.id) && p.created_at >= thirtyDaysAgoStr)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .map(p => ({
+        key:   p.id,
+        label: p.name + (p.status !== 'active' ? ` (${p.status.replace('_', ' ')})` : ''),
+        group: 'new' as const,
+      })),
+    // Everything else alphabetically
+    ...projects
+      .filter(p => !recentSet.has(p.id) && p.created_at < thirtyDaysAgoStr)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(p => ({
+        key:   p.id,
+        label: p.name + (p.status !== 'active' ? ` (${p.status.replace('_', ' ')})` : ''),
+        group: 'other' as const,
+      })),
+  ]
 
   function set(key: keyof typeof form, value: string) {
     setForm(f => {
@@ -120,24 +282,11 @@ export default function LogHoursForm({ projects }: Props) {
       {/* Project / Leave */}
       <div>
         <label className="block text-xs font-medium text-teal-700 mb-1">Project</label>
-        <select
+        <ProjectDropdown
+          options={dropdownOptions}
           value={form.project_key}
-          onChange={e => set('project_key', e.target.value)}
-          className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
-        >
-          <option value="">— Select project —</option>
-          <optgroup label="Leave">
-            <option value={PAID_LEAVE_KEY}>Paid Leave (8h deducted from capacity)</option>
-            <option value={SICK_LEAVE_KEY}>Sick Leave (8h deducted from capacity)</option>
-          </optgroup>
-          <optgroup label="Projects">
-            {projects.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.name}{p.status !== 'active' ? ` (${p.status.replace('_', ' ')})` : ''}
-              </option>
-            ))}
-          </optgroup>
-        </select>
+          onChange={key => set('project_key', key)}
+        />
         {isLeave && (
           <p className="text-xs text-yellow-600 mt-0.5 bg-yellow-50 px-2 py-1 rounded">
             Each leave entry counts as 1 day (8h) and reduces your utilisation denominator.
