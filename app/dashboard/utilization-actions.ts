@@ -7,8 +7,9 @@ export type EmployeeDetail = {
   name:              string
   role:              string
   totalHours:        number
-  effectiveCapacity: number   // active weeks × capacity_hours − leave hours
+  effectiveCapacity: number
   projects:          { projectId: string; name: string; hours: number }[]
+  noEntry:           boolean   // true = active employee with zero logs this period
 }
 
 export type ProjectDetail = {
@@ -70,17 +71,25 @@ export async function fetchUtilizationDetail(
       .gte('week_start', startDate)
       .lte('week_start', endDate)
       .not('leave_type', 'is', null),
+    // Only active employees
     supabase
       .from('users')
-      .select('id, capacity_hours')
-      .in('role', ['analyst', 'consultant']),
+      .select('id, name, role, capacity_hours')
+      .in('role', ['analyst', 'consultant'])
+      .eq('active', true),
   ])
 
   if (error) return { error: error.message }
 
-  // Per-user capacity and leave tracking
   const capacityByUser: Record<string, number> = {}
-  for (const u of userCapRows ?? []) capacityByUser[u.id] = u.capacity_hours ?? 40
+  const nameByUser:     Record<string, string> = {}
+  const roleByUser:     Record<string, string> = {}
+
+  for (const u of userCapRows ?? []) {
+    capacityByUser[u.id] = u.capacity_hours ?? 40
+    nameByUser[u.id]     = u.name
+    roleByUser[u.id]     = u.role
+  }
 
   const leaveHoursMap:  Record<string, number>      = {}
   const activeWeeksMap: Record<string, Set<string>> = {}
@@ -104,18 +113,18 @@ export async function fetchUtilizationDetail(
   const projMap: Record<string, ProjectDetail>  = {}
 
   for (const raw of (rows ?? []) as unknown as Row[]) {
-    const uRole  = raw.users?.role ?? ''
+    const uRole = raw.users?.role ?? ''
     if (!['analyst', 'consultant'].includes(uRole)) continue
-    const uid    = raw.user_id
-    const pid    = raw.project_id ?? 'unassigned'
-    const hours  = raw.hours_logged ?? 0
-    const uName  = raw.users?.name ?? 'Unknown'
-    const pName  = raw.projects?.name ?? 'No project'
+    const uid   = raw.user_id
+    const pid   = raw.project_id ?? 'unassigned'
+    const hours = raw.hours_logged ?? 0
+    const uName = raw.users?.name ?? 'Unknown'
+    const pName = raw.projects?.name ?? 'No project'
 
     if (!activeWeeksMap[uid]) activeWeeksMap[uid] = new Set()
     activeWeeksMap[uid].add(raw.week_start)
 
-    if (!empMap[uid]) empMap[uid] = { userId: uid, name: uName, role: uRole, totalHours: 0, effectiveCapacity: 0, projects: [] }
+    if (!empMap[uid]) empMap[uid] = { userId: uid, name: uName, role: uRole, totalHours: 0, effectiveCapacity: 0, projects: [], noEntry: false }
     empMap[uid].totalHours += hours
     const ep = empMap[uid].projects.find(p => p.projectId === pid)
     if (ep) { ep.hours += hours }
@@ -125,16 +134,31 @@ export async function fetchUtilizationDetail(
     projMap[pid].totalHours += hours
   }
 
-  // Compute effective capacity per employee
+  // Compute effective capacity
   for (const uid of Object.keys(empMap)) {
     const activeWeeks = activeWeeksMap[uid]?.size ?? 0
     const leaveHours  = leaveHoursMap[uid] ?? 0
     empMap[uid].effectiveCapacity = Math.max(activeWeeks * (capacityByUser[uid] ?? 40) - leaveHours, 0)
   }
 
-  const byEmployee = Object.values(empMap).sort((a, b) => b.totalHours - a.totalHours)
+  // Add active employees who logged nothing this period — show as "On Leave"
+  for (const u of userCapRows ?? []) {
+    if (!empMap[u.id]) {
+      empMap[u.id] = {
+        userId: u.id, name: u.name, role: u.role,
+        totalHours: 0, effectiveCapacity: 0,
+        projects: [], noEntry: true,
+      }
+    }
+  }
+
+  // Sort: employees with hours first (by hours desc), then no-entry employees (alphabetically)
+  const withHours  = Object.values(empMap).filter(e => !e.noEntry).sort((a, b) => b.totalHours - a.totalHours)
+  const noEntries  = Object.values(empMap).filter(e =>  e.noEntry).sort((a, b) => a.name.localeCompare(b.name))
+  const byEmployee = [...withHours, ...noEntries]
+
   const byProject  = Object.values(projMap).sort((a, b) => b.totalHours - a.totalHours)
-  const totalHours = byEmployee.reduce((s, e) => s + e.totalHours, 0)
+  const totalHours = withHours.reduce((s, e) => s + e.totalHours, 0)
 
   return { data: { byEmployee, byProject, totalHours, periodLabel } }
 }

@@ -4,6 +4,15 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+async function assertManager(): Promise<{ error: string } | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  const { data: me } = await supabase.from('users').select('role').eq('id', user.id).single()
+  if (!['manager', 'director', 'executive'].includes(me?.role ?? '')) return { error: 'Only managers can perform this action.' }
+  return null
+}
+
 export async function createEmployee(data: {
   name: string
   email: string
@@ -14,18 +23,15 @@ export async function createEmployee(data: {
 }) {
   const admin = createAdminClient()
 
-  // Validate email format
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
     return { error: 'Invalid email address.' }
   }
 
-  // Generate a cryptographically secure temporary password
   const bytes = new Uint8Array(12)
   crypto.getRandomValues(bytes)
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
   const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join('').slice(0, 10) + 'A1!'
 
-  // Create auth user
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email: data.email,
     password: tempPassword,
@@ -33,12 +39,8 @@ export async function createEmployee(data: {
     user_metadata: { name: data.name, role: data.role },
   })
 
-
   if (authError) return { error: authError.message }
 
-  // Upsert the profile row — handles both cases:
-  // (a) trigger already created the row → updates it
-  // (b) trigger silently failed → inserts it fresh
   const { error: profileError } = await admin
     .from('users')
     .upsert({
@@ -49,6 +51,7 @@ export async function createEmployee(data: {
       capacity_hours: data.capacity_hours,
       team:           data.team || '',
       reports_to:     data.reports_to || null,
+      active:         true,
     }, { onConflict: 'id' })
 
   if (profileError) return { error: profileError.message }
@@ -69,7 +72,6 @@ export async function updateEmployee(userId: string, data: {
 }) {
   const supabase = await createClient()
 
-  // Validate reports_to user exists if provided
   if (data.reports_to) {
     const { data: manager } = await supabase
       .from('users')
@@ -81,23 +83,19 @@ export async function updateEmployee(userId: string, data: {
 
   const { error } = await supabase
     .from('users')
-    .update({
-      name:           data.name,
-      role:           data.role,
-      capacity_hours: data.capacity_hours,
-    })
+    .update({ name: data.name, role: data.role, capacity_hours: data.capacity_hours })
     .eq('id', userId)
 
   if (error) return { error: error.message }
 
-  // Update optional columns (team / reports_to) — only exist after migration
   await supabase
     .from('users')
     .update({
-      ...(data.team !== undefined ? { team: data.team }                       : {}),
+      ...(data.team !== undefined ? { team: data.team } : {}),
       ...(data.reports_to !== undefined ? { reports_to: data.reports_to || null } : {}),
     })
     .eq('id', userId)
+
   revalidatePath('/employees')
   revalidatePath('/team')
   revalidatePath('/staffing')
@@ -105,18 +103,41 @@ export async function updateEmployee(userId: string, data: {
   return { success: true }
 }
 
-export async function removeEmployee(userId: string) {
+export async function deactivateEmployee(userId: string): Promise<{ error?: string; success?: boolean }> {
+  const authErr = await assertManager()
+  if (authErr) return authErr
+
   const admin = createAdminClient()
 
-  // Clean up all related records before deleting the auth user
-  await admin.from('assignments').delete().eq('user_id', userId)
-  await admin.from('weekly_hours').delete().eq('user_id', userId)
-  await admin.from('stage_history').delete().eq('changed_by', userId)
-  // Clear reports_to references so other users don't point to a deleted user
-  await admin.from('users').update({ reports_to: null }).eq('reports_to', userId)
+  const { error: dbErr } = await admin
+    .from('users')
+    .update({ active: false })
+    .eq('id', userId)
+  if (dbErr) return { error: dbErr.message }
 
-  const { error } = await admin.auth.admin.deleteUser(userId)
-  if (error) return { error: error.message }
+  await admin.auth.admin.updateUserById(userId, { ban_duration: '876000h' })
+
+  revalidatePath('/employees')
+  revalidatePath('/team')
+  revalidatePath('/staffing')
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+
+export async function reactivateEmployee(userId: string): Promise<{ error?: string; success?: boolean }> {
+  const authErr = await assertManager()
+  if (authErr) return authErr
+
+  const admin = createAdminClient()
+
+  const { error: dbErr } = await admin
+    .from('users')
+    .update({ active: true })
+    .eq('id', userId)
+  if (dbErr) return { error: dbErr.message }
+
+  await admin.auth.admin.updateUserById(userId, { ban_duration: 'none' })
+
   revalidatePath('/employees')
   revalidatePath('/team')
   revalidatePath('/staffing')

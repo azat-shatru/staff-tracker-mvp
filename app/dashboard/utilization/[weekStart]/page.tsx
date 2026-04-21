@@ -85,13 +85,17 @@ export default async function UtilizationDetailPage({
               <h2 className="text-xl font-semibold text-teal-900">
                 {data?.periodLabel ?? 'Utilization Detail'}
               </h2>
-              {data && (
-                <p className="text-sm text-slate-500 mt-0.5">
-                  {data.totalHours.toFixed(1)}h logged across{' '}
-                  {data.byEmployee.length} employee{data.byEmployee.length !== 1 ? 's' : ''} ·{' '}
-                  {data.byProject.length} project{data.byProject.length !== 1 ? 's' : ''}
-                </p>
-              )}
+              {data && (() => {
+                const logged   = data.byEmployee.filter(e => !e.noEntry).length
+                const onLeave  = data.byEmployee.filter(e =>  e.noEntry).length
+                return (
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {data.totalHours.toFixed(1)}h logged · {logged} active{' '}
+                    {onLeave > 0 && <span className="text-slate-400">· {onLeave} on leave / no entry</span>}
+                    {data.byProject.length > 0 && ` · ${data.byProject.length} project${data.byProject.length !== 1 ? 's' : ''}`}
+                  </p>
+                )
+              })()}
             </div>
 
             {/* Period tabs */}

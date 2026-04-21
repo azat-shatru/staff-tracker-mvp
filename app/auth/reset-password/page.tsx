@@ -24,6 +24,15 @@ function ResetPasswordForm() {
 
   // Exchange the one-time code from the email link for a session
   useEffect(() => {
+    const errorCode = searchParams.get('error_code')
+    if (errorCode === 'otp_expired') {
+      setInitError('This reset link has expired. Please request a new one.')
+      return
+    }
+    if (searchParams.get('error')) {
+      setInitError('This reset link is invalid. Please request a new one.')
+      return
+    }
     const code = searchParams.get('code')
     if (!code) {
       setInitError('Invalid or expired reset link. Please request a new one.')

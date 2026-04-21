@@ -28,7 +28,7 @@ export async function logout() {
 export async function resetPassword(email: string) {
   const supabase = await createClient()
   const headersList = await headers()
-  const origin = headersList.get('origin') ?? 'http://localhost:3000'
+  const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? headersList.get('origin') ?? 'http://localhost:3000').replace(/\/$/, '')
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/auth/reset-password`,

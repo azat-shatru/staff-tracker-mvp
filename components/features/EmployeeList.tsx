@@ -1,21 +1,21 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
-import { createEmployee, updateEmployee, removeEmployee } from '@/app/employees/actions'
+import { createEmployee, updateEmployee, deactivateEmployee, reactivateEmployee } from '@/app/employees/actions'
 import type { User, Role } from '@/lib/types'
 import { ROLE_DISPLAY } from '@/lib/types'
 
 const ROLES: Role[] = ['analyst', 'consultant', 'manager', 'director', 'executive']
 const TEAMS = ['Insights', 'UST', 'SV Team', 'Programming', 'BA', 'Fielding', 'Management']
 
-type UserRow = Pick<User, 'id' | 'name' | 'email' | 'role' | 'team' | 'reports_to' | 'capacity_hours'>
+type UserRow = Pick<User, 'id' | 'name' | 'email' | 'role' | 'team' | 'reports_to' | 'capacity_hours' | 'active'>
 
 interface Props {
   users: UserRow[]
   currentUserId: string
-  canManage: boolean   // manager / director / executive
+  canManage: boolean
 }
 
 const EMPTY_FORM = {
@@ -25,22 +25,29 @@ const EMPTY_FORM = {
 
 export default function EmployeeList({ users, currentUserId, canManage }: Props) {
   const router = useRouter()
-  const [showAdd, setShowAdd]       = useState(false)
-  const [editUser, setEditUser]     = useState<UserRow | null>(null)
-  const [removeTarget, setRemove]   = useState<UserRow | null>(null)
-  const [changePassUser, setChangePw] = useState<UserRow | null>(null)
-  const [form, setForm]             = useState(EMPTY_FORM)
-  const [saving, setSaving]         = useState(false)
-  const [error, setError]           = useState<string | null>(null)
-  const [tempPassword, setTempPass] = useState<string | null>(null)
-  const [search, setSearch]         = useState('')
+  const [showAdd, setShowAdd]             = useState(false)
+  const [editUser, setEditUser]           = useState<UserRow | null>(null)
+  const [deactivateTarget, setDeactivate] = useState<UserRow | null>(null)
+  const [reactivateTarget, setReactivate] = useState<UserRow | null>(null)
+  const [changePassUser, setChangePw]     = useState<UserRow | null>(null)
+  const [form, setForm]                   = useState(EMPTY_FORM)
+  const [saving, setSaving]               = useState(false)
+  const [error, setError]                 = useState<string | null>(null)
+  const [tempPassword, setTempPass]       = useState<string | null>(null)
+  const [search, setSearch]               = useState('')
+  const [showInactive, setShowInactive]   = useState(false)
 
-  const filtered = users.filter(u =>
+  const activeUsers   = users.filter(u => u.active !== false)
+  const inactiveUsers = users.filter(u => u.active === false)
+
+  const filterFn = (u: UserRow) =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase()) ||
     (u.team ?? '').toLowerCase().includes(search.toLowerCase()) ||
     (ROLE_DISPLAY[u.role] ?? u.role).toLowerCase().includes(search.toLowerCase())
-  )
+
+  const filteredActive   = activeUsers.filter(filterFn)
+  const filteredInactive = inactiveUsers.filter(filterFn)
 
   function openAdd() {
     setForm(EMPTY_FORM); setError(null); setTempPass(null); setShowAdd(true)
@@ -81,19 +88,89 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
     setEditUser(null); router.refresh()
   }
 
-  async function handleRemove() {
-    if (!removeTarget) return
-    setSaving(true)
-    const res = await removeEmployee(removeTarget.id)
+  async function handleDeactivate() {
+    if (!deactivateTarget) return
+    setSaving(true); setError(null)
+    const res = await deactivateEmployee(deactivateTarget.id)
     setSaving(false)
     if (res.error) { setError(res.error); return }
-    setRemove(null); router.refresh()
+    setDeactivate(null); router.refresh()
   }
 
-  const managersAndAbove = users.filter(u =>
+  async function handleReactivate() {
+    if (!reactivateTarget) return
+    setSaving(true); setError(null)
+    const res = await reactivateEmployee(reactivateTarget.id)
+    setSaving(false)
+    if (res.error) { setError(res.error); return }
+    setReactivate(null); router.refresh()
+  }
+
+  const managersAndAbove = activeUsers.filter(u =>
     u.role === 'manager' || u.role === 'director' || u.role === 'executive'
   )
 
+  function EmployeeRow({ u, inactive = false }: { u: UserRow; inactive?: boolean }) {
+    const reportsTo = users.find(r => r.id === u.reports_to)
+    const isMe      = u.id === currentUserId
+
+    return (
+      <tr key={u.id} className={`hover:bg-emerald-50 ${isMe ? 'bg-blue-50/30' : ''} ${inactive ? 'opacity-50' : ''}`}>
+        <td className="px-4 py-3">
+          <div className="font-medium text-teal-900 flex items-center gap-1.5">
+            {u.name}
+            {isMe && <span className="text-xs text-blue-500 font-normal">(you)</span>}
+            {inactive && (
+              <span className="text-xs font-medium px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
+                Inactive
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-slate-400">{u.email}</div>
+        </td>
+        <td className="px-4 py-3 text-teal-700 text-sm">{ROLE_DISPLAY[u.role] ?? u.role}</td>
+        <td className="px-4 py-3 text-teal-700 text-sm">{u.team || '—'}</td>
+        <td className="px-4 py-3 text-teal-700 text-sm">{reportsTo?.name ?? '—'}</td>
+        <td className="px-4 py-3 text-teal-700 text-sm">{u.capacity_hours}h/wk</td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-2 justify-end">
+            {isMe && !inactive && (
+              <button
+                onClick={() => setChangePw(u)}
+                className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 rounded px-2 py-1 transition-colors"
+              >
+                Change Password
+              </button>
+            )}
+            {canManage && !inactive && (
+              <button
+                onClick={() => openEdit(u)}
+                className="text-xs text-slate-500 hover:text-teal-900 border border-emerald-200 rounded px-2 py-1 transition-colors"
+              >
+                Edit
+              </button>
+            )}
+            {canManage && !isMe && !inactive && (
+              <button
+                onClick={() => { setError(null); setDeactivate(u) }}
+                className="text-xs text-amber-600 hover:text-amber-800 border border-amber-200 rounded px-2 py-1 transition-colors"
+              >
+                Deactivate
+              </button>
+            )}
+            {canManage && inactive && (
+              <button
+                onClick={() => { setError(null); setReactivate(u) }}
+                className="text-xs text-teal-600 hover:text-teal-800 border border-teal-200 rounded px-2 py-1 transition-colors"
+              >
+                Reactivate
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -116,7 +193,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
         )}
       </div>
 
-      {/* Table */}
+      {/* Active employees table */}
       <div className="bg-white rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-emerald-50 border-b">
@@ -129,66 +206,47 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
             </tr>
           </thead>
           <tbody className="divide-y">
-            {filtered.length === 0 ? (
+            {filteredActive.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">
                   No employees found.
                 </td>
               </tr>
-            ) : filtered.map(u => {
-              const reportsTo  = users.find(r => r.id === u.reports_to)
-              const isMe       = u.id === currentUserId
-
-              return (
-                <tr key={u.id} className={`hover:bg-emerald-50 ${isMe ? 'bg-blue-50/30' : ''}`}>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-teal-900 flex items-center gap-1.5">
-                      {u.name}
-                      {isMe && <span className="text-xs text-blue-500 font-normal">(you)</span>}
-                    </div>
-                    <div className="text-xs text-slate-400">{u.email}</div>
-                  </td>
-                  <td className="px-4 py-3 text-teal-700 text-sm">{ROLE_DISPLAY[u.role] ?? u.role}</td>
-                  <td className="px-4 py-3 text-teal-700 text-sm">{u.team || '—'}</td>
-                  <td className="px-4 py-3 text-teal-700 text-sm">{reportsTo?.name ?? '—'}</td>
-                  <td className="px-4 py-3 text-teal-700 text-sm">{u.capacity_hours}h/wk</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 justify-end">
-                      {/* Change password — own row only */}
-                      {isMe && (
-                        <button
-                          onClick={() => setChangePw(u)}
-                          className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 rounded px-2 py-1 transition-colors"
-                        >
-                          Change Password
-                        </button>
-                      )}
-                      {/* Edit — managers only */}
-                      {canManage && (
-                        <button
-                          onClick={() => openEdit(u)}
-                          className="text-xs text-slate-500 hover:text-teal-900 border border-emerald-200 rounded px-2 py-1 transition-colors"
-                        >
-                          Edit
-                        </button>
-                      )}
-                      {/* Remove — managers only, can't remove yourself */}
-                      {canManage && !isMe && (
-                        <button
-                          onClick={() => setRemove(u)}
-                          className="text-xs text-red-400 hover:text-red-600 border border-red-200 rounded px-2 py-1 transition-colors"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
+            ) : filteredActive.map(u => <EmployeeRow key={u.id} u={u} />)}
           </tbody>
         </table>
       </div>
+
+      {/* Inactive employees — managers only */}
+      {canManage && inactiveUsers.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowInactive(v => !v)}
+            className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1.5 mb-2"
+          >
+            <span>{showInactive ? '▾' : '▸'}</span>
+            {inactiveUsers.length} deactivated employee{inactiveUsers.length !== 1 ? 's' : ''}
+          </button>
+          {showInactive && (
+            <div className="bg-white rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    {['Name', 'Role', 'Team', 'Reports To', 'Capacity', ''].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredInactive.map(u => <EmployeeRow key={u.id} u={u} inactive />)}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Add Modal ─────────────────────────────────────────── */}
       {showAdd && (
@@ -236,32 +294,68 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
 
       {/* ── Change Password Modal ─────────────────────────────── */}
       {changePassUser && (
-        <ChangePasswordModal
-          onClose={() => setChangePw(null)}
-        />
+        <ChangePasswordModal onClose={() => setChangePw(null)} />
       )}
 
-      {/* ── Remove Confirm ────────────────────────────────────── */}
-      {removeTarget && (
-        <Modal title="Remove Employee" onClose={() => setRemove(null)}>
+      {/* ── Deactivate Confirm ────────────────────────────────── */}
+      {deactivateTarget && (
+        <Modal title="Deactivate Employee" onClose={() => setDeactivate(null)}>
           <div className="space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-sm text-red-700">
-                This will permanently delete <strong>{removeTarget.name}</strong> and all their data
-                (assignments, logged hours). This cannot be undone.
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <p className="text-sm text-amber-800 font-medium mb-1">
+                Deactivate <strong>{deactivateTarget.name}</strong>?
+              </p>
+              <p className="text-sm text-amber-700">
+                They will be blocked from logging in and removed from active views.
+                All their historical data is preserved and you can reactivate them at any time.
               </p>
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setRemove(null)} className="px-4 py-2 border border-emerald-200 text-sm rounded-lg hover:bg-emerald-50">
+              <button
+                onClick={() => setDeactivate(null)}
+                className="px-4 py-2 border border-emerald-200 text-sm rounded-lg hover:bg-emerald-50"
+              >
                 Cancel
               </button>
               <button
-                onClick={handleRemove}
+                onClick={handleDeactivate}
                 disabled={saving}
-                className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50"
+                className="px-4 py-2 bg-amber-500 text-white text-sm rounded-lg hover:bg-amber-600 disabled:opacity-50"
               >
-                {saving ? 'Removing...' : 'Yes, Remove'}
+                {saving ? 'Deactivating...' : 'Yes, Deactivate'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Reactivate Confirm ────────────────────────────────── */}
+      {reactivateTarget && (
+        <Modal title="Reactivate Employee" onClose={() => setReactivate(null)}>
+          <div className="space-y-4">
+            <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+              <p className="text-sm text-teal-800 font-medium mb-1">
+                Reactivate <strong>{reactivateTarget.name}</strong>?
+              </p>
+              <p className="text-sm text-teal-700">
+                They will be able to log in again and will appear in all active employee views.
+              </p>
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setReactivate(null)}
+                className="px-4 py-2 border border-emerald-200 text-sm rounded-lg hover:bg-emerald-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReactivate}
+                disabled={saving}
+                className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 disabled:opacity-50"
+              >
+                {saving ? 'Reactivating...' : 'Yes, Reactivate'}
               </button>
             </div>
           </div>
@@ -273,17 +367,16 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
 
 // ── Change Password ──────────────────────────────────────────────────────────
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
-  const [newPassword, setNew]     = useState('')
-  const [confirm, setConfirm]     = useState('')
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState<string | null>(null)
-  const [success, setSuccess]     = useState(false)
+  const [newPassword, setNew] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   async function handleSave() {
     if (newPassword.length < 8) { setError('Password must be at least 8 characters.'); return }
     if (newPassword !== confirm) { setError('Passwords do not match.'); return }
     setSaving(true); setError(null)
-
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -312,9 +405,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-xs font-medium text-teal-700 mb-1">New Password</label>
             <input
-              type="password"
-              value={newPassword}
-              onChange={e => setNew(e.target.value)}
+              type="password" value={newPassword} onChange={e => setNew(e.target.value)}
               placeholder="Minimum 8 characters"
               className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
@@ -322,9 +413,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           <div>
             <label className="block text-xs font-medium text-teal-700 mb-1">Confirm Password</label>
             <input
-              type="password"
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
+              type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
               placeholder="Re-enter new password"
               className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
@@ -335,8 +424,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
               Cancel
             </button>
             <button
-              onClick={handleSave}
-              disabled={saving}
+              onClick={handleSave} disabled={saving}
               className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Update Password'}

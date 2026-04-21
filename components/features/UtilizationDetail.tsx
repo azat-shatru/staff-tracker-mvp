@@ -45,6 +45,21 @@ export default function UtilizationDetailView({ data }: { data: UtilizationDetai
             </div>
           )}
           {data.byEmployee.map(emp => {
+            // No-entry employees: show as On Leave row, not expandable
+            if (emp.noEntry) {
+              return (
+                <div key={emp.userId} className="bg-white rounded-lg border px-5 py-4 flex items-center justify-between opacity-60">
+                  <div>
+                    <span className="text-sm font-semibold text-slate-600">{emp.name}</span>
+                    {emp.role && <span className="ml-2 text-xs text-slate-400">{emp.role}</span>}
+                  </div>
+                  <span className="text-xs font-medium px-2 py-1 bg-slate-100 text-slate-500 rounded-full">
+                    On Leave / No Entry
+                  </span>
+                </div>
+              )
+            }
+
             const isExpanded = expandedUser === emp.userId
             const utilPct  = emp.effectiveCapacity > 0 ? Math.round((emp.totalHours / emp.effectiveCapacity) * 100) : 0
             const barW     = emp.effectiveCapacity > 0
@@ -54,7 +69,6 @@ export default function UtilizationDetailView({ data }: { data: UtilizationDetai
 
             return (
               <div key={emp.userId} className="bg-white rounded-lg border overflow-hidden">
-                {/* Employee header row */}
                 <button
                   className="w-full px-5 py-4 flex items-center gap-4 hover:bg-emerald-50 transition-colors text-left"
                   onClick={() => setExpandedUser(isExpanded ? null : emp.userId)}
@@ -87,15 +101,11 @@ export default function UtilizationDetailView({ data }: { data: UtilizationDetai
                       </div>
                     </div>
                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${barColor} rounded-full transition-all`}
-                        style={{ width: barW }}
-                      />
+                      <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: barW }} />
                     </div>
                   </div>
                 </button>
 
-                {/* Project breakdown */}
                 {isExpanded && (
                   <div className="border-t divide-y bg-slate-50">
                     <div className="grid grid-cols-[1fr_80px_60px_64px] px-5 py-2 text-xs font-medium text-slate-400 uppercase tracking-wide">
@@ -109,17 +119,14 @@ export default function UtilizationDetailView({ data }: { data: UtilizationDetai
                       .sort((a, b) => b.hours - a.hours)
                       .map(p => {
                         const pct   = emp.totalHours > 0 ? Math.round((p.hours / emp.totalHours) * 100) : 0
-                        const pBarW = `${pct}%`
                         return (
                           <div key={p.projectId} className="grid grid-cols-[1fr_80px_60px_64px] items-center px-5 py-3">
                             <span className="text-sm text-teal-700 truncate pr-4">{p.name}</span>
-                            <span className="text-sm font-semibold text-teal-900 text-right">
-                              {p.hours.toFixed(1)}h
-                            </span>
+                            <span className="text-sm font-semibold text-teal-900 text-right">{p.hours.toFixed(1)}h</span>
                             <span className="text-xs text-slate-500 text-right">{pct}%</span>
                             <div className="pl-3">
                               <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                <div className="h-full bg-teal-400 rounded-full" style={{ width: pBarW }} />
+                                <div className="h-full bg-teal-400 rounded-full" style={{ width: `${pct}%` }} />
                               </div>
                             </div>
                           </div>

@@ -35,6 +35,7 @@ export interface User {
   reports_to: string | null
   capacity_hours: number
   efficiency_modifier: number
+  active: boolean
   created_at: string
 }
 

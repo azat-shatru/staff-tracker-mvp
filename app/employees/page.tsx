@@ -25,10 +25,14 @@ export default async function EmployeesPage() {
 
   const perms = getPermissions(currentUser?.role as Role | undefined)
 
-  const { data: allUsers } = await supabase
-    .from('users')
-    .select('*')
-    .order('name')
+  // Managers see everyone (to allow reactivation); others see active only
+  const query = supabase.from('users').select('*').order('name')
+  const { data: allUsers } = perms.canManageEmployees
+    ? await query
+    : await query.eq('active', true)
+
+  const activeCount   = (allUsers ?? []).filter(u => u.active !== false).length
+  const inactiveCount = (allUsers ?? []).filter(u => u.active === false).length
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -56,7 +60,10 @@ export default async function EmployeesPage() {
           <div className="mb-5 flex items-end justify-between">
             <div>
               <h2 className="text-xl font-semibold text-teal-900">Team Directory</h2>
-              <p className="text-sm text-slate-500 mt-0.5">{(allUsers ?? []).length} employees</p>
+              <p className="text-sm text-slate-500 mt-0.5">
+                {activeCount} active
+                {inactiveCount > 0 && ` · ${inactiveCount} deactivated`}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Link
