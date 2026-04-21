@@ -60,6 +60,63 @@ export async function removeAssignment(assignmentId: string, projectId: string) 
   return { success: true }
 }
 
+export async function changeProjectManager(
+  projectId: string,
+  newManagerId: string
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const permError = await requireManager(supabase, user.id)
+  if (permError) return permError
+
+  // Get current project manager id
+  const { data: project } = await supabase
+    .from('projects')
+    .select('project_manager_id')
+    .eq('id', projectId)
+    .single()
+
+  // Remove old manager's PM assignment (keep any other role they may have)
+  if (project?.project_manager_id) {
+    await supabase
+      .from('assignments')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('user_id', project.project_manager_id)
+      .eq('role_label', 'Project Manager')
+  }
+
+  // Update the project
+  const { error } = await supabase
+    .from('projects')
+    .update({ project_manager_id: newManagerId })
+    .eq('id', projectId)
+  if (error) return { error: error.message }
+
+  // Add new manager's PM assignment (only if not already assigned to this project)
+  const { data: existing } = await supabase
+    .from('assignments')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('user_id', newManagerId)
+    .eq('role_label', 'Project Manager')
+    .maybeSingle()
+
+  if (!existing) {
+    await supabase.from('assignments').insert({
+      project_id: projectId,
+      user_id: newManagerId,
+      role_label: 'Project Manager',
+      allocation_pct: 0,
+    })
+  }
+
+  revalidateAll(projectId)
+  return { success: true }
+}
+
 export async function updateAssignmentAllocation(
   assignmentId: string,
   projectId: string,

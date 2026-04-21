@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { addAssignment, removeAssignment, updateAssignmentAllocation } from '@/app/projects/[id]/assignment-actions'
+import { addAssignment, removeAssignment, updateAssignmentAllocation, changeProjectManager } from '@/app/projects/[id]/assignment-actions'
 import type { Assignment, User } from '@/lib/types'
 import { ROLE_DISPLAY } from '@/lib/types'
 
@@ -22,13 +22,15 @@ function snapToStep(x: number, step: number, min: number, max: number) {
 }
 
 export default function AssignmentsSection({ projectId, projectManager, assignments, users, canManage }: Props) {
-  const [showForm, setShowForm] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ userId: '', roleLabel: '', allocationPct: 50 })
+  const [showForm, setShowForm]         = useState(false)
+  const [showChangeManager, setChangeMgr] = useState(false)
+  const [newManagerId, setNewManagerId] = useState('')
+  const [saving, setSaving]             = useState(false)
+  const [form, setForm]                 = useState({ userId: '', roleLabel: '', allocationPct: 50 })
   const [localAssignments, setLocalAssignments] = useState(assignments)
+  const [localManager, setLocalManager] = useState(projectManager)
   const router = useRouter()
 
-  // Sync with fresh server data while preserving any optimistic entries not yet confirmed by the DB
   useEffect(() => {
     setLocalAssignments(prev => {
       const pending = prev.filter(
@@ -37,6 +39,21 @@ export default function AssignmentsSection({ projectId, projectManager, assignme
       return [...assignments, ...pending]
     })
   }, [assignments])
+
+  useEffect(() => { setLocalManager(projectManager) }, [projectManager])
+
+  async function handleChangeManager() {
+    if (!newManagerId) return
+    setSaving(true)
+    const result = await changeProjectManager(projectId, newManagerId)
+    setSaving(false)
+    if ('error' in result && result.error) return
+    const found = users.find(u => u.id === newManagerId) ?? null
+    setLocalManager(found)
+    setNewManagerId('')
+    setChangeMgr(false)
+    router.refresh()
+  }
 
   // Total allocation across all assigned members
   const totalAllocPct = localAssignments.reduce((sum, a) => sum + a.allocation_pct, 0)
@@ -52,7 +69,7 @@ export default function AssignmentsSection({ projectId, projectManager, assignme
   // Exclude already-assigned users and the manager from the add dropdown
   const assignedUserIds = new Set([
     ...localAssignments.map(a => a.user_id),
-    ...(projectManager ? [projectManager.id] : []),
+    ...(localManager ? [localManager.id] : []),
   ])
   const availableUsers = users.filter(u => !assignedUserIds.has(u.id))
 
@@ -129,20 +146,71 @@ export default function AssignmentsSection({ projectId, projectManager, assignme
       </div>
 
       <div className="divide-y border rounded-lg overflow-hidden">
-        {/* Permanent manager row */}
-        {projectManager ? (
+        {/* Project manager row */}
+        {showChangeManager ? (
+          <div className="px-4 py-3 bg-emerald-50 space-y-2">
+            <p className="text-xs font-medium text-teal-700">Change Project Manager</p>
+            <select
+              value={newManagerId}
+              onChange={e => setNewManagerId(e.target.value)}
+              className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+            >
+              <option value="">— Select new manager —</option>
+              {users
+                .filter(u => u.id !== localManager?.id)
+                .map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({ROLE_DISPLAY[u.role] ?? u.role})
+                  </option>
+                ))}
+            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={handleChangeManager}
+                disabled={!newManagerId || saving}
+                className="text-xs px-3 py-1.5 bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-40 transition-colors"
+              >
+                {saving ? 'Saving...' : 'Confirm'}
+              </button>
+              <button
+                onClick={() => { setChangeMgr(false); setNewManagerId('') }}
+                className="text-xs px-3 py-1.5 border border-emerald-200 text-teal-700 rounded hover:bg-emerald-100 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : localManager ? (
           <div className="flex items-center justify-between px-4 py-3 bg-emerald-50">
             <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium text-teal-900">{projectManager.name}</span>
+              <span className="text-sm font-medium text-teal-900">{localManager.name}</span>
               <span className="text-xs text-slate-400">Project Manager</span>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-teal-700">
-              Permanent
-            </span>
+            <div className="flex items-center gap-2">
+              {canManage && (
+                <button
+                  onClick={() => setChangeMgr(true)}
+                  className="text-xs text-slate-500 hover:text-teal-700 border border-emerald-200 rounded px-2 py-0.5 transition-colors"
+                >
+                  Change
+                </button>
+              )}
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-teal-700">
+                PM
+              </span>
+            </div>
           </div>
         ) : (
-          <div className="px-4 py-3 bg-emerald-50">
+          <div className="flex items-center justify-between px-4 py-3 bg-emerald-50">
             <span className="text-xs text-slate-400 italic">No manager assigned</span>
+            {canManage && (
+              <button
+                onClick={() => setChangeMgr(true)}
+                className="text-xs text-slate-500 hover:text-teal-700 border border-emerald-200 rounded px-2 py-0.5 transition-colors"
+              >
+                Assign
+              </button>
+            )}
           </div>
         )}
 
