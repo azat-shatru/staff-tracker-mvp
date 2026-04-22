@@ -216,3 +216,98 @@ export async function processTimesheet(rows: TimesheetRow[]): Promise<TimesheetR
   revalidatePath('/dashboard')
   return { imported: upserts.length, errors }
 }
+
+/** Sync assignments from all existing weekly_hours entries */
+export async function syncAssignmentsFromHours(): Promise<{ assigned: number; error?: string }> {
+  const supabase = await createClient()
+
+  // Check caller is manager
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { assigned: 0, error: 'Not authenticated' }
+  const { data: me } = await supabase.from('users').select('role').eq('id', user.id).single()
+  if (me?.role !== 'manager') return { assigned: 0, error: 'Permission denied' }
+
+  // Fetch all hours entries that have a project_id
+  const { data: hours } = await supabase
+    .from('weekly_hours')
+    .select('user_id, project_id')
+    .not('project_id', 'is', null)
+
+  if (!hours || hours.length === 0) return { assigned: 0 }
+
+  type ExistingAssignment = { id: string; user_id: string; project_id: string; role_label: string; allocation_pct: number }
+
+  // Collect unique project → user pairs
+  const projectUsers = new Map<string, Set<string>>()
+  for (const h of hours as { user_id: string; project_id: string }[]) {
+    if (!projectUsers.has(h.project_id)) projectUsers.set(h.project_id, new Set())
+    projectUsers.get(h.project_id)!.add(h.user_id)
+  }
+
+  const projectIds = [...projectUsers.keys()]
+
+  const [{ data: existingAssignments }, { data: projectsWithPM }] = await Promise.all([
+    supabase.from('assignments').select('id, user_id, project_id, role_label, allocation_pct').in('project_id', projectIds),
+    supabase.from('projects').select('id, project_manager_id').in('id', projectIds),
+  ])
+
+  const pmByProject = new Map<string, string>()
+  for (const p of (projectsWithPM ?? []) as { id: string; project_manager_id: string | null }[]) {
+    if (p.project_manager_id) pmByProject.set(p.id, p.project_manager_id)
+  }
+
+  const assignmentsByProject = new Map<string, ExistingAssignment[]>()
+  for (const a of (existingAssignments ?? []) as ExistingAssignment[]) {
+    if (!assignmentsByProject.has(a.project_id)) assignmentsByProject.set(a.project_id, [])
+    assignmentsByProject.get(a.project_id)!.push(a)
+  }
+
+  const newAssignments: { project_id: string; user_id: string; role_label: string; allocation_pct: number }[] = []
+  for (const [projectId, userIds] of projectUsers) {
+    const pmId = pmByProject.get(projectId)
+    const existing = assignmentsByProject.get(projectId) ?? []
+    const existingUserIds = new Set(existing.map(a => a.user_id))
+
+    for (const userId of userIds) {
+      if (userId === pmId) continue
+      if (!existingUserIds.has(userId)) {
+        newAssignments.push({ project_id: projectId, user_id: userId, role_label: '', allocation_pct: 0 })
+      }
+    }
+  }
+
+  if (newAssignments.length > 0) {
+    await supabase.from('assignments').insert(newAssignments)
+  }
+
+  // Rebalance all non-PM assignments to equal allocation
+  const { data: updatedAssignments } = await supabase
+    .from('assignments')
+    .select('id, user_id, project_id, role_label, allocation_pct')
+    .in('project_id', projectIds)
+
+  const allocationUpdates: { id: string; allocation_pct: number }[] = []
+  for (const projectId of projectIds) {
+    const pmId = pmByProject.get(projectId)
+    const nonPmAssignments = ((updatedAssignments ?? []) as ExistingAssignment[])
+      .filter(a => a.project_id === projectId && a.user_id !== pmId && a.role_label !== 'Project Manager')
+
+    const n = nonPmAssignments.length
+    if (n === 0) continue
+    const equalPct = Math.round(100 / n)
+    for (const a of nonPmAssignments) {
+      allocationUpdates.push({ id: a.id, allocation_pct: equalPct })
+    }
+  }
+
+  await Promise.all(
+    allocationUpdates.map(u =>
+      supabase.from('assignments').update({ allocation_pct: u.allocation_pct }).eq('id', u.id)
+    )
+  )
+
+  revalidatePath('/staffing')
+  revalidatePath('/team')
+  revalidatePath('/dashboard')
+  return { assigned: newAssignments.length }
+}

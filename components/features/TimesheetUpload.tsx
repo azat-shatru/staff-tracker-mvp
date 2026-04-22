@@ -1,12 +1,14 @@
 ﻿'use client'
 
 import { useRef, useState } from 'react'
-import { processTimesheet, type TimesheetRow, type TimesheetResult } from '@/app/staffing/timesheet-actions'
+import { processTimesheet, syncAssignmentsFromHours, type TimesheetRow, type TimesheetResult } from '@/app/staffing/timesheet-actions'
 
 export default function TimesheetUpload() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [processing, setProcessing] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [result, setResult] = useState<TimesheetResult | null>(null)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
   function parseCSVLine(line: string): string[] {
     const fields: string[] = []
@@ -78,15 +80,37 @@ export default function TimesheetUpload() {
     if (inputRef.current) inputRef.current.value = ''
   }
 
+  async function handleSync() {
+    setSyncing(true)
+    setSyncMsg(null)
+    const res = await syncAssignmentsFromHours()
+    setSyncing(false)
+    if (res.error) {
+      setSyncMsg(`Error: ${res.error}`)
+    } else {
+      setSyncMsg(res.assigned === 0
+        ? 'All assignments already up to date.'
+        : `Done — ${res.assigned} new assignment${res.assigned !== 1 ? 's' : ''} created and allocations rebalanced.`
+      )
+    }
+  }
+
   return (
     <div className="relative">
       <div className="flex items-center gap-2">
         <button
           onClick={() => inputRef.current?.click()}
-          disabled={processing}
+          disabled={processing || syncing}
           className="text-xs px-3 py-1.5 border border-emerald-200 rounded text-teal-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors"
         >
           {processing ? 'Processing...' : '↑ Upload Timesheet'}
+        </button>
+        <button
+          onClick={handleSync}
+          disabled={processing || syncing}
+          className="text-xs px-3 py-1.5 border border-teal-300 rounded text-teal-700 hover:bg-teal-50 disabled:opacity-50 transition-colors"
+        >
+          {syncing ? 'Syncing...' : '⟳ Sync Assignments'}
         </button>
         <input
           ref={inputRef}
@@ -96,6 +120,11 @@ export default function TimesheetUpload() {
           className="hidden"
         />
       </div>
+      {syncMsg && (
+        <div className="mt-2 text-xs rounded-md px-3 py-2 bg-teal-50 border border-teal-200 text-teal-800">
+          {syncMsg}
+        </div>
+      )}
 
       {result && (
         <div className={`mt-2 text-xs rounded-md px-3 py-2 ${result.errors.length > 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'}`}>
