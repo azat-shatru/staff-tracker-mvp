@@ -9,6 +9,7 @@ export async function logHours(data: {
   hours:       number
   rating:      number
   leave_type?: string          // 'paid_leave' | 'sick_leave' | undefined
+  stage?:      string
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -39,7 +40,7 @@ export async function logHours(data: {
     if (existing) {
       const { error } = await supabase
         .from('weekly_hours')
-        .update({ hours_logged: data.hours, rating: data.rating })
+        .update({ hours_logged: data.hours, rating: data.rating, stage: data.stage ?? null })
         .eq('id', existing.id)
       if (error) return { error: error.message }
     } else {
@@ -51,6 +52,7 @@ export async function logHours(data: {
           week_start:   data.week_start,
           hours_logged: data.hours,
           rating:       data.rating,
+          stage:        data.stage ?? null,
         })
       if (error) return { error: error.message }
     }
@@ -90,6 +92,7 @@ export async function updateHoursEntry(id: string, data: {
   hours:       number
   rating:      number
   leave_type?: string
+  stage?:      string
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -106,6 +109,7 @@ export async function updateHoursEntry(id: string, data: {
       hours_logged: data.hours,
       rating:       data.rating,
       leave_type:   data.leave_type ?? null,
+      stage:        data.stage ?? null,
     })
     .eq('id', id)
     .eq('user_id', user.id)

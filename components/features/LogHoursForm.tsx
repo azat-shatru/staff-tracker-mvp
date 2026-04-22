@@ -6,6 +6,17 @@ import { logHours } from '@/app/log-hours/actions'
 
 const RATINGS = [0, 1, 2, 3, 4, 5, 6, 7]
 
+const STAGE_OPTIONS = [
+  { value: 'kickoff',       label: 'KO – Kickoff' },
+  { value: 'questionnaire', label: 'QNR – Questionnaire' },
+  { value: 'programming',   label: 'Programming' },
+  { value: 'fielding',      label: 'Fielding' },
+  { value: 'templating',    label: 'Templating' },
+  { value: 'analysis',      label: 'Analysis' },
+  { value: 'reporting',     label: 'Reporting' },
+  { value: 'other',         label: 'Other' },
+]
+
 const PAID_LEAVE_KEY = '__paid_leave__'
 const SICK_LEAVE_KEY = '__sick_leave__'
 const LEAVE_KEYS     = [PAID_LEAVE_KEY, SICK_LEAVE_KEY]
@@ -152,6 +163,7 @@ export default function LogHoursForm({ projects, recentProjectIds }: Props) {
     project_key: '',
     hours:       '',
     rating:      '',
+    stage:       '',
   })
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
@@ -202,6 +214,7 @@ export default function LogHoursForm({ projects, recentProjectIds }: Props) {
       const next = { ...f, [key]: value }
       if (key === 'project_key') {
         next.hours = LEAVE_KEYS.includes(value) ? '8' : (LEAVE_KEYS.includes(f.project_key) ? '' : f.hours)
+        next.stage = ''
       }
       return next
     })
@@ -227,6 +240,7 @@ export default function LogHoursForm({ projects, recentProjectIds }: Props) {
       hours:      isLeave ? 8 : hours,
       rating:     parseInt(form.rating),
       leave_type: leaveType,
+      stage:      (!leaveType && form.stage) ? form.stage : undefined,
     })
     setSaving(false)
     if (res.error) { setError(res.error); return }
@@ -293,6 +307,21 @@ export default function LogHoursForm({ projects, recentProjectIds }: Props) {
           </p>
         )}
       </div>
+
+      {/* Phase — only for project entries */}
+      {!isLeave && form.project_key && (
+        <div>
+          <label className="block text-xs font-medium text-teal-700 mb-1">Phase <span className="text-slate-400 font-normal">(optional)</span></label>
+          <select
+            value={form.stage}
+            onChange={e => set('stage', e.target.value)}
+            className="w-full border border-emerald-200 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+          >
+            <option value="">— Select phase —</option>
+            {STAGE_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Hours — locked to 8 for leave */}
       <div>
