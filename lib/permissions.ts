@@ -29,5 +29,9 @@ export function getPermissions(role: Role | undefined) {
     // Full utilization: drill-down, staffing matrix, team workload
     canViewUtilization:        role === 'manager' || role === 'director' || role === 'executive',
     isReadOnly:                role === 'director',
+    // Daily log: analysts, consultants, and managers log their own day
+    canUseDailyLog:            role === 'manager' || role === 'consultant' || role === 'analyst',
+    // Team status tiles: same group can view the full team's daily status
+    canViewTeamStatus:         role === 'manager' || role === 'consultant' || role === 'analyst',
   }
 }

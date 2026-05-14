@@ -113,3 +113,40 @@ export interface FileLink {
   added_by: string
   added_at: string
 }
+
+export type DailyStatus = 'WFO' | 'WFH' | 'OOO'
+
+export interface DailyLog {
+  id: string
+  user_id: string
+  log_date: string
+  status: DailyStatus
+  ooo_set_by: string | null
+  submitted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DailyLogSlot {
+  id: string
+  log_id: string
+  start_min: number     // minutes from midnight, e.g. 660 = 11:00 am
+  end_min: number       // minutes from midnight, e.g. 720 = 12:00 pm
+  project_id: string | null
+  phase: string | null
+  priority: number | null
+  deliverable: boolean
+  notes: string | null
+  created_at: string
+}
+
+export const DAILY_PHASES = [
+  'Proposal', 'Kick off', 'QNR building', 'Programming', 'Translations',
+  'Link testing', 'Fielding', 'AE Reporting', 'Templating', 'OE Coding',
+  'Reporting', 'Client review', 'Client follow-ups',
+] as const
+
+// Work hours: 9 am – midnight (15 hours, 30 × 30-min slots)
+export const WORK_START_MIN = 9 * 60    // 540
+export const WORK_END_MIN   = 24 * 60   // 1440
+export const WORK_HOURS     = (WORK_END_MIN - WORK_START_MIN) / 60  // 15

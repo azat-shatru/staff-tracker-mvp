@@ -54,9 +54,9 @@ export default async function DashboardPage() {
 
   const thisWeekStr = toDateStr(thisMonday)
 
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-  const sevenDaysAgoStr = sevenDaysAgo.toISOString()
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10)   // YYYY-MM-DD
 
   const [
     { data: projects },
@@ -92,11 +92,12 @@ export default async function DashboardPage() {
       .from('stage_notes')
       .select('stage_id, value')
       .eq('field_key', 'expected_hours_per_week'),
-    // Project stages started or completed in the last 7 days
+    // Projects with log hours entries in the last 30 days
     supabase
-      .from('project_stages')
+      .from('weekly_hours')
       .select('project_id')
-      .or(`started_at.gte.${sevenDaysAgoStr},completed_at.gte.${sevenDaysAgoStr}`),
+      .gte('week_start', thirtyDaysAgoStr)
+      .not('project_id', 'is', null),
   ])
 
   // Map project_id → reporting completed_at
@@ -123,18 +124,18 @@ export default async function DashboardPage() {
     }
   }
 
-  // ── Recent vs older projects ────────────────────────────────────────────────
-  // "Recent" = created in the last 7 days OR has a project stage that was
-  // updated (started/completed) in the last 7 days
-  const projectsWithRecentActivity = new Set(
+  // ── Active vs older projects ─────────────────────────────────────────────────
+  // "Active" = has weekly_hours log entries in the last 30 days
+  // Everything else (no recent logs, completed, archived) goes to the collapsed section
+  const projectsWithRecentHours = new Set(
     (recentHours ?? []).map((s: { project_id: string }) => s.project_id)
   )
 
   const recentProjects = (projects ?? []).filter(
-    (p: Project) => projectsWithRecentActivity.has(p.id) || p.created_at >= sevenDaysAgoStr
+    (p: Project) => projectsWithRecentHours.has(p.id)
   )
   const olderProjects = (projects ?? []).filter(
-    (p: Project) => !projectsWithRecentActivity.has(p.id) && p.created_at < sevenDaysAgoStr
+    (p: Project) => !projectsWithRecentHours.has(p.id)
   )
 
   // ── Utilization — past 12 weeks ──────────────────────────────────────────────
@@ -292,6 +293,16 @@ export default async function DashboardPage() {
               </Link>
             </>
           )}
+          {perms.canUseDailyLog && (
+            <>
+              <Link href="/daily-log" className="text-sm text-teal-100 hover:text-white transition-colors font-medium">
+                Daily Log
+              </Link>
+              <Link href="/team-status" className="text-sm text-teal-100 hover:text-white transition-colors">
+                Team Status
+              </Link>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-teal-100">
@@ -308,6 +319,32 @@ export default async function DashboardPage() {
 
       <main className="p-6">
         <div className="max-w-5xl mx-auto space-y-5">
+
+          {/* ── Daily log quick-access card ─────────────────────── */}
+          {perms.canUseDailyLog && (
+            <div className="grid grid-cols-2 gap-4">
+              <Link
+                href="/daily-log"
+                className="flex items-center gap-4 bg-white rounded-lg border border-teal-200 p-4 hover:border-teal-400 hover:shadow-sm transition-all group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-xl shrink-0">📋</div>
+                <div>
+                  <p className="font-semibold text-teal-900 group-hover:text-teal-700">My Daily Log</p>
+                  <p className="text-xs text-slate-500">Plan your day · log hours by project</p>
+                </div>
+              </Link>
+              <Link
+                href="/team-status"
+                className="flex items-center gap-4 bg-white rounded-lg border border-slate-200 p-4 hover:border-teal-300 hover:shadow-sm transition-all group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center text-xl shrink-0">👥</div>
+                <div>
+                  <p className="font-semibold text-slate-800 group-hover:text-teal-700">Team Status</p>
+                  <p className="text-xs text-slate-500">See who's in, busy, or out today</p>
+                </div>
+              </Link>
+            </div>
+          )}
 
           {/* ── Utilization dial + projected histogram ─────────── */}
           {perms.canViewUtilizationSummary && (

@@ -28,17 +28,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      {/* Prevent flash of wrong theme before React hydrates */}
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: `
-          (function(){
-            var t = localStorage.getItem('theme');
-            var p = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (t === 'dark' || (!t && p)) document.documentElement.classList.add('dark');
-          })();
-        `}} />
-      </head>
       <body className="min-h-full flex flex-col">
+        {/* Prevent flash of wrong theme before React hydrates */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme');var p=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(!t&&p))document.documentElement.classList.add('dark');})();` }} />
         {children}
         <ThemeToggle />
       </body>

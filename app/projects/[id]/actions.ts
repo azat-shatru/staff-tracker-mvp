@@ -120,8 +120,9 @@ export async function updateStageStatus(
     .from('project_stages')
     .update({
       status: newStatus,
-      started_at: newStatus === 'in_progress' ? new Date().toISOString() : undefined,
-      completed_at: newStatus === 'complete' ? new Date().toISOString() : undefined,
+      started_at:      newStatus === 'in_progress' ? new Date().toISOString() : undefined,
+      completed_at:    newStatus === 'complete'     ? new Date().toISOString() : undefined,
+      manually_set_at: new Date().toISOString(),   // locks this stage from auto-assignment
     })
     .eq('id', stageId)
 
@@ -148,7 +149,7 @@ export async function removeStage(stageId: string, projectId: string) {
   // Reset stage back to pending and clear timestamps
   await supabase
     .from('project_stages')
-    .update({ status: 'pending', started_at: null, completed_at: null })
+    .update({ status: 'pending', started_at: null, completed_at: null, manually_set_at: new Date().toISOString() })
     .eq('id', stageId)
 
   // Clear all notes and deliverables for this stage

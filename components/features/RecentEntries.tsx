@@ -3,7 +3,18 @@
 import { useState } from 'react'
 import { deleteHoursEntry, updateHoursEntry } from '@/app/log-hours/actions'
 
-const RATINGS      = [0, 1, 2, 3, 4, 5, 6, 7]
+const RATINGS = [0, 1, 2, 3, 4, 5, 6, 7]
+
+const STAGE_OPTIONS = [
+  { value: 'kickoff',       label: 'KO – Kickoff' },
+  { value: 'questionnaire', label: 'QNR – Questionnaire' },
+  { value: 'programming',   label: 'Programming' },
+  { value: 'fielding',      label: 'Fielding' },
+  { value: 'templating',    label: 'Templating' },
+  { value: 'analysis',      label: 'Analysis' },
+  { value: 'reporting',     label: 'Reporting' },
+  { value: 'other',         label: 'Other' },
+]
 
 const PAID_LEAVE_KEY = '__paid_leave__'
 const SICK_LEAVE_KEY = '__sick_leave__'
@@ -16,6 +27,7 @@ export interface RecentEntry {
   hours_logged: number
   rating:       number
   leave_type:   string | null
+  stage:        string | null
   project_name: string | null
   entry_date:   string
 }
@@ -43,7 +55,7 @@ export default function RecentEntries({ entries: initial, projects }: Props) {
   const [entries,   setEntries]   = useState<RecentEntry[]>(initial)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm,  setEditForm]  = useState<{
-    week_start: string; project_key: string; hours: string; rating: string
+    week_start: string; project_key: string; hours: string; rating: string; stage: string
   } | null>(null)
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState<string | null>(null)
@@ -54,7 +66,7 @@ export default function RecentEntries({ entries: initial, projects }: Props) {
       e.leave_type === 'sick_leave' ? SICK_LEAVE_KEY :
       e.project_id ?? ''
     setEditingId(e.id)
-    setEditForm({ week_start: e.week_start, project_key, hours: String(e.hours_logged), rating: String(e.rating) })
+    setEditForm({ week_start: e.week_start, project_key, hours: String(e.hours_logged), rating: String(e.rating), stage: e.stage ?? '' })
     setError(null)
   }
 
@@ -83,6 +95,7 @@ export default function RecentEntries({ entries: initial, projects }: Props) {
       hours,
       rating:      parseInt(editForm.rating),
       leave_type:  leaveType,
+      stage:       (!leaveType && editForm.stage) ? editForm.stage : undefined,
     })
     setSaving(false)
     if (res.error) { setError(res.error); return }
@@ -95,6 +108,7 @@ export default function RecentEntries({ entries: initial, projects }: Props) {
       hours_logged: hours,
       rating:       parseInt(editForm.rating),
       leave_type:   leaveType ?? null,
+      stage:        (!leaveType && editForm.stage) ? editForm.stage : null,
       project_name: leaveType ? null : projName,
     } : e))
     setEditingId(null); setEditForm(null)
@@ -124,6 +138,7 @@ export default function RecentEntries({ entries: initial, projects }: Props) {
                 if (key === 'project_key') {
                   next.hours = LEAVE_KEYS.includes(val) ? '8'
                     : (LEAVE_KEYS.includes(f.project_key) ? '' : f.hours)
+                  if (LEAVE_KEYS.includes(val)) next.stage = ''
                 }
                 return next
               })
@@ -168,6 +183,17 @@ export default function RecentEntries({ entries: initial, projects }: Props) {
                       {RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
+                  {!isLeave && (
+                    <div className="col-span-2">
+                      <label className="block text-xs text-slate-500 mb-0.5">Phase <span className="text-slate-300">(optional)</span></label>
+                      <select value={editForm.stage} onChange={e => setF('stage', e.target.value)}
+                        className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      >
+                        <option value="">— Select phase —</option>
+                        {STAGE_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <button onClick={handleSave} disabled={saving}
@@ -191,6 +217,11 @@ export default function RecentEntries({ entries: initial, projects }: Props) {
                 <span className={`font-medium shrink-0 ${entry.leave_type ? 'text-yellow-700' : 'text-teal-900'}`}>
                   {entryLabel(entry)}
                 </span>
+                {entry.stage && (
+                  <span className="text-slate-500 shrink-0 bg-slate-100 px-1.5 py-0.5 rounded">
+                    {STAGE_OPTIONS.find(s => s.value === entry.stage)?.label ?? entry.stage}
+                  </span>
+                )}
                 <span className="text-teal-700 shrink-0">{entry.hours_logged}h</span>
                 <span className="text-slate-400 shrink-0">★ {entry.rating}</span>
                 <span className="text-slate-300 shrink-0">{hoursAgo(entry.entry_date)}</span>

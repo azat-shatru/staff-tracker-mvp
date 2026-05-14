@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import LogHoursForm from '@/components/features/LogHoursForm'
 import RecentEntries from '@/components/features/RecentEntries'
 import type { RecentEntry } from '@/components/features/RecentEntries'
+import ProjectDailyAgg from '@/components/features/ProjectDailyAgg'
+import { buildProjectGroups } from '@/lib/build-project-groups'
 import { ROLE_DISPLAY } from '@/lib/types'
 
 export default async function LogHoursPage() {
@@ -24,10 +26,16 @@ export default async function LogHoursPage() {
   const cutoff = new Date()
   cutoff.setHours(cutoff.getHours() - 48)
 
+  const weekAgoForDailyLog = (() => {
+    const d = new Date(); d.setDate(d.getDate() - 6)
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  })()
+
   const [
     { data: projects },
     { data: recentRaw },
     { data: recentLogRaw },
+    { data: dailyWeekLogs },
   ] = await Promise.all([
     supabase
       .from('projects')
@@ -36,7 +44,7 @@ export default async function LogHoursPage() {
       .order('name'),
     supabase
       .from('weekly_hours')
-      .select('id, week_start, project_id, hours_logged, rating, leave_type, entry_date, project:projects(name)')
+      .select('id, week_start, project_id, hours_logged, rating, leave_type, stage, entry_date, project:projects(name)')
       .eq('user_id', user.id)
       .gte('entry_date', cutoff.toISOString())
       .order('entry_date', { ascending: false }),
@@ -48,7 +56,39 @@ export default async function LogHoursPage() {
       .not('project_id', 'is', null)
       .order('week_start', { ascending: false })
       .limit(100),
+    // Daily logs for this week (for the project aggregation section)
+    supabase
+      .from('daily_logs')
+      .select('id, log_date')
+      .eq('user_id', user.id)
+      .gte('log_date', weekAgoForDailyLog),
   ])
+
+  // Fetch daily slots for those logs
+  const dailyLogIds = (dailyWeekLogs ?? []).map((l: { id: string }) => l.id)
+  const { data: dailyWeekSlots } = dailyLogIds.length > 0
+    ? await supabase
+        .from('daily_log_slots')
+        .select('log_id, start_min, end_min, project_id, phase, priority, project:projects(id, name)')
+        .in('log_id', dailyLogIds)
+    : { data: [] }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const normSlots = (dailyWeekSlots ?? []).map((s: any) => ({
+    log_id:     s.log_id    as string,
+    start_min:  s.start_min as number,
+    end_min:    s.end_min   as number,
+    project_id: (s.project_id ?? null) as string | null,
+    phase:      (s.phase      ?? null) as string | null,
+    priority:   (s.priority   ?? null) as number | null,
+    project: Array.isArray(s.project)
+      ? (s.project[0] ? { id: s.project[0].id as string, name: s.project[0].name as string } : null)
+      : s.project ?? null,
+  }))
+  const projectGroups = buildProjectGroups(
+    normSlots,
+    (dailyWeekLogs ?? []) as { id: string; log_date: string }[],
+  )
 
   // Deduplicate: ordered list of project_ids this user logged recently (most recent first)
   const seenIds = new Set<string>()
@@ -63,7 +103,7 @@ export default async function LogHoursPage() {
   // Flatten the project join
   const recentEntries: RecentEntry[] = (recentRaw ?? []).map((r: {
     id: string; week_start: string; project_id: string | null; hours_logged: number;
-    rating: number; leave_type: string | null; entry_date: string;
+    rating: number; leave_type: string | null; stage: string | null; entry_date: string;
     project: { name: string }[] | { name: string } | null;
   }) => ({
     id:           r.id,
@@ -72,6 +112,7 @@ export default async function LogHoursPage() {
     hours_logged: r.hours_logged,
     rating:       r.rating,
     leave_type:   r.leave_type,
+    stage:        r.stage,
     entry_date:   r.entry_date,
     project_name: (Array.isArray(r.project) ? r.project[0]?.name : r.project?.name) ?? null,
   }))
@@ -101,6 +142,15 @@ export default async function LogHoursPage() {
 
       <main className="p-6">
         <div className="max-w-lg mx-auto space-y-5">
+
+          {/* Daily plan aggregation — this week by project */}
+          {projectGroups.length > 0 && (
+            <div className="bg-white rounded-lg border p-6">
+              <h2 className="text-base font-semibold text-teal-900 mb-1">This week's daily plan</h2>
+              <p className="text-sm text-slate-500 mb-1">Hours you've planned in your daily log, grouped by project. Expand any row to see individual days.</p>
+              <ProjectDailyAgg groups={projectGroups} />
+            </div>
+          )}
 
           {/* Recent entries — edit / delete */}
           <RecentEntries entries={recentEntries} projects={projectList} />
