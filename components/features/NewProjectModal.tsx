@@ -99,7 +99,7 @@ export default function NewProjectModal({ users }: Props) {
                 >
                   <option value="">Select manager...</option>
                   {users
-                    .filter(u => u.role === 'manager' || u.role === 'consultant')
+                    .filter(u => u.role === 'manager')
                     .map(u => (
                       <option key={u.id} value={u.id}>
                         {u.name} ({ROLE_DISPLAY[u.role] ?? u.role})

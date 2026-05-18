@@ -61,6 +61,7 @@ export default async function DashboardPage() {
   const [
     { data: projects },
     { data: allUsers },
+    { data: managers },
     { data: reportingStages },
     { data: allAssignments },
     { data: prevWeekHours },
@@ -70,6 +71,7 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(500),
     supabase.from('users').select('id, name, role, capacity_hours').in('role', ['analyst', 'consultant']).order('name').limit(500),
+    supabase.from('users').select('id, name, role').eq('role', 'manager').order('name').limit(200),
     supabase
       .from('project_stages')
       .select('project_id, completed_at')
@@ -392,7 +394,7 @@ export default async function DashboardPage() {
             membersByProject={membersByProject}
             reportingDoneAt={reportingDoneAt}
             canCreateProject={perms.canCreateProject}
-            users={allUsers ?? []}
+            users={managers ?? []}
           />
 
         </div>

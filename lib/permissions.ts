@@ -16,7 +16,7 @@ export function getPermissions(role: Role | undefined) {
     }
   }
   return {
-    canCreateProject:          role === 'manager',
+    canCreateProject:          true,
     canManagePoc:              role === 'manager',
     canTransitionStage:        role === 'manager' || role === 'consultant',
     canRemoveStage:            role === 'manager',

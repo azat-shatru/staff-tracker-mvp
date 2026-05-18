@@ -15,6 +15,15 @@ export async function createProject(formData: FormData) {
   const target_delivery_date = formData.get('target_delivery_date') as string
   const project_manager_id = formData.get('project_manager_id') as string
 
+  if (project_manager_id) {
+    const { data: pm } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', project_manager_id)
+      .single()
+    if (!pm || pm.role !== 'manager') return { error: 'Project manager must have the Manager role' }
+  }
+
   const { data: project, error } = await supabase
     .from('projects')
     .insert({
