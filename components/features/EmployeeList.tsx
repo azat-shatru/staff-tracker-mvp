@@ -84,7 +84,7 @@ export default function EmployeeList({ users, currentUserId, canManage }: Props)
       reports_to: form.reports_to || null, capacity_hours: form.capacity_hours,
     })
     setSaving(false)
-    if (res.error) { setError(res.error); return }
+    if ('error' in res && res.error) { setError(res.error); return }
     setEditUser(null); router.refresh()
   }
 

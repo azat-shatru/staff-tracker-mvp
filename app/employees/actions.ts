@@ -70,10 +70,13 @@ export async function updateEmployee(userId: string, data: {
   reports_to: string | null
   capacity_hours: number
 }) {
-  const supabase = await createClient()
+  const authErr = await assertManager()
+  if (authErr) return authErr
+
+  const admin = createAdminClient()
 
   if (data.reports_to) {
-    const { data: manager } = await supabase
+    const { data: manager } = await admin
       .from('users')
       .select('id')
       .eq('id', data.reports_to)
@@ -81,20 +84,18 @@ export async function updateEmployee(userId: string, data: {
     if (!manager) return { error: 'Selected manager does not exist.' }
   }
 
-  const { error } = await supabase
+  const { error } = await admin
     .from('users')
-    .update({ name: data.name, role: data.role, capacity_hours: data.capacity_hours })
+    .update({
+      name:           data.name,
+      role:           data.role,
+      capacity_hours: data.capacity_hours,
+      team:           data.team,
+      reports_to:     data.reports_to || null,
+    })
     .eq('id', userId)
 
   if (error) return { error: error.message }
-
-  await supabase
-    .from('users')
-    .update({
-      ...(data.team !== undefined ? { team: data.team } : {}),
-      ...(data.reports_to !== undefined ? { reports_to: data.reports_to || null } : {}),
-    })
-    .eq('id', userId)
 
   revalidatePath('/employees')
   revalidatePath('/team')
