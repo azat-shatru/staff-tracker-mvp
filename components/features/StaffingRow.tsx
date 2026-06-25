@@ -251,4 +251,32 @@ function ProjectCard({
 
 function StageTimelineRow({ item, isLast }: { item: StageTimelineItem; isLast: boolean }) {
   const isActive = item.status === 'in_progress'
-  con
+  const isDone   = item.status === 'complete'
+
+  return (
+    <div className={`flex items-center gap-3 text-xs ${isDone ? 'opacity-50' : ''}`}>
+      {/* Status dot */}
+      <span className={`text-base leading-none w-4 text-center ${stageStatusColor(item.status)}`}>
+        {stageStatusDot(item.status)}
+      </span>
+
+      {/* Stage name */}
+      <span className={`w-28 font-medium ${isActive ? 'text-blue-700' : 'text-teal-700'}`}>
+        {item.label}
+        {isActive && <span className="ml-1 text-blue-400 text-xs">← now</span>}
+      </span>
+
+      {/* Date range */}
+      <span className="text-slate-400 w-32">
+        {formatDate(item.estimatedStart)} → {formatDate(item.estimatedEnd)}
+      </span>
+
+      {/* Hours badge */}
+      {item.status !== 'complete' && (
+        <span className="text-slate-500">
+          ~{item.predictedHoursPerWeek}h/wk
+        </span>
+      )}
+    </div>
+  )
+}

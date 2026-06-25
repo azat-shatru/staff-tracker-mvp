@@ -367,4 +367,33 @@ export default async function StaffingPage({
                   recentProjectIds={hoursProjectsByUser[u.userId] ?? new Set<string>()}
                   lastWeekActualHours={lastWeekHoursByUser[u.userId] ?? 0}
                 />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Legend ───────────────────────────────────────────── */}
+          <div className="flex items-center gap-6 text-xs text-slate-400 px-1">
+            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-green-400 inline-block" /> &lt; 50%</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-yellow-400 inline-block" /> 50–79%</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-orange-400 inline-block" /> 80–99%</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-red-400 inline-block" /> ≥ 100%</span>
+            <span className="ml-2 text-slate-300">|</span>
+            <span>◐ = In Progress · ● = Complete · ○ = Pending</span>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function SummaryCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="bg-white rounded-lg border p-4">
+      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">{label}</p>
+      <p className="text-2xl font-semibold text-teal-900">{value}</p>
+      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    </div>
+  )
+}
           
