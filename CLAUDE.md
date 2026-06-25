@@ -21,10 +21,10 @@ A Next.js 16 (Turbopack) staff tracking app deployed on Vercel. Supabase is the 
 - `components/features/NewProjectModal.tsx` — create project modal
 - `lib/types.ts` — shared TypeScript types (`Project`, `User`, `Role`, etc.)
 - `lib/permissions.ts` — role-based permission helpers
-- `lib/utilization.ts` — `weekStart`, `toDateStr`, `buildStageTimeline` utilities
+- `lib/utilization.ts` — `weekStart`, `toDateStr`, `getPeriodBounds`, `buildStageTimeline`, plus shared `effectiveCapacity`/`utilizationPct` helpers (used by both the Utilization page and the Staffing matrix so their numbers stay identical)
 
 ## Key data model notes
-- `weekly_hours` has `user_id, hours_logged, week_start, leave_type` — **no `project_id`**
+- `weekly_hours` has `user_id, project_id, hours_logged, week_start, leave_type`. `project_id` is **nullable** (created in migration_001, NOT NULL dropped in migration_003) — leave entries have a null `project_id`, work entries set it. Filter `leave_type IS NULL` for work hours.
 - `project_stages` has `started_at` and `completed_at` — **no `updated_at`**
 - "Recent project" = stage `started_at`/`completed_at` within last 7 days, OR `projects.created_at` within last 7 days
 - Assignments link users to projects: `assignments(project_id, user_id, allocation_pct, ...)`
