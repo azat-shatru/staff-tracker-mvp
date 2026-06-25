@@ -10,7 +10,7 @@ import type { Role } from '@/lib/types'
 import { ROLE_DISPLAY } from '@/lib/types'
 import {
   STAGE_HOURS, CAPACITY_PER_WEEK,
-  getPeriodBounds, buildStageTimeline,
+  getPeriodBounds, buildStageTimeline, weekStart, toDateStr,
   type UserUtilizationData, type ProjectBreakdown,
 } from '@/lib/utilization'
 import StaffingRow from '@/components/features/StaffingRow'
@@ -38,6 +38,19 @@ export default async function StaffingPage({
 
   const { start, end, weekCount } = getPeriodBounds(period)
 
+  // 12-week look-back for hours-based staffing inference
+  const twelveWeeksAgo = new Date()
+  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84)
+  const twelveWeeksAgoStr = toDateStr(weekStart(twelveWeeksAgo))
+
+  // Last completed week bounds (for Actual% — current week is always in-progress)
+  const lastWeekStart = new Date(weekStart(new Date()))
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7)
+  const lastWeekEnd = new Date(lastWeekStart)
+  lastWeekEnd.setDate(lastWeekEnd.getDate() + 6)
+  const lastWeekStartStr = toDateStr(lastWeekStart)
+  const lastWeekEndStr   = toDateStr(lastWeekEnd)
+
   // ── Fetch everything in parallel ────────────────────────────────
   const [
     { data: allUsers },
@@ -45,6 +58,9 @@ export default async function StaffingPage({
     { data: allStages },
     { data: weeklyHours },
     { data: allStageNotes },
+    { data: recentHoursLinks },
+    { data: allProjectsFlat },
+    { data: lastWeekHoursData },
   ] = await Promise.all([
     supabase.from('users').select('id, name, role, capacity_hours').in('role', ['analyst', 'consultant']).eq('active', true).order('name').limit(500),
     supabase
@@ -62,6 +78,23 @@ export default async function StaffingPage({
       .from('stage_notes')
       .select('stage_id, value')
       .eq('field_key', 'expected_hours_per_week'),
+    // Distinct user→project pairs with any hours in last 12 weeks
+    supabase
+      .from('weekly_hours')
+      .select('user_id, project_id')
+      .gte('week_start', twelveWeeksAgoStr)
+      .not('project_id', 'is', null),
+    // Project details needed for hours-only rows
+    supabase
+      .from('projects')
+      .select('id, name, status, kickoff_date, target_delivery_date')
+      .neq('status', 'archived'),
+    // Last completed week hours per user (for Actual% column)
+    supabase
+      .from('weekly_hours')
+      .select('user_id, hours_logged')
+      .gte('week_start', lastWeekStartStr)
+      .lte('week_start', lastWeekEndStr),
   ])
 
   // ── Index helpers ───────────────────────────────────────────────
@@ -117,11 +150,33 @@ export default async function StaffingPage({
     hoursByUserProject[key] = (hoursByUserProject[key] ?? 0) + h.hours_logged
   }
 
+  // ── Index helpers for hours-based staffing ─────────────────────
+  type ProjectRow = { id: string; name: string; status: string; kickoff_date: string | null; target_delivery_date: string | null }
+
+  const projectById: Record<string, ProjectRow> = {}
+  for (const p of (allProjectsFlat ?? []) as ProjectRow[]) {
+    projectById[p.id] = p
+  }
+
+  // user_id → set of project_ids with hours in last 12 weeks
+  const hoursProjectsByUser: Record<string, Set<string>> = {}
+  for (const h of (recentHoursLinks ?? []) as { user_id: string; project_id: string }[]) {
+    if (!hoursProjectsByUser[h.user_id]) hoursProjectsByUser[h.user_id] = new Set()
+    hoursProjectsByUser[h.user_id].add(h.project_id)
+  }
+
+  // user_id → total hours logged last completed week
+  const lastWeekHoursByUser: Record<string, number> = {}
+  for (const h of (lastWeekHoursData ?? []) as { user_id: string; hours_logged: number }[]) {
+    lastWeekHoursByUser[h.user_id] = (lastWeekHoursByUser[h.user_id] ?? 0) + h.hours_logged
+  }
+
   // ── Build utilization data per user ────────────────────────────
   const utilizationData: UserUtilizationData[] = ((allUsers ?? []) as UserRow[]).map(u => {
     const userAssignments = assignmentsByUser[u.id] ?? []
 
-    const projects: ProjectBreakdown[] = userAssignments
+    // Projects from formal assignments
+    const assignedProjects: ProjectBreakdown[] = userAssignments
       .filter(a => a.project !== null)
       .map(a => {
         const proj   = a.project!
@@ -157,11 +212,50 @@ export default async function StaffingPage({
         }
       })
 
-    const actualHours          = Object.entries(hoursByUserProject)
+    // Additional projects inferred from hours logged in the past 4 months
+    // (only those not already covered by a formal assignment)
+    const assignedProjIds = new Set(assignedProjects.map(p => p.projectId))
+    const userHoursProjIds = hoursProjectsByUser[u.id] ?? new Set<string>()
+
+    const hoursOnlyProjects: ProjectBreakdown[] = []
+    for (const projId of userHoursProjIds) {
+      if (assignedProjIds.has(projId)) continue
+      const proj = projectById[projId]
+      if (!proj) continue
+
+      const stages = stagesByProject[proj.id] ?? []
+      const inProgressStage = stages.find(s => s.status === 'in_progress')
+      const currentStage    = inProgressStage?.stage ?? null
+      const projHoursOverrides = hoursOverridesByProject[proj.id]
+
+      const stageTimeline = (proj.kickoff_date && proj.target_delivery_date)
+        ? buildStageTimeline(proj.kickoff_date, proj.target_delivery_date, stages, 0, projHoursOverrides)
+        : []
+
+      hoursOnlyProjects.push({
+        projectId:          proj.id,
+        projectName:        proj.name,
+        projectStatus:      proj.status,
+        allocationPct:      0,
+        roleLabel:          '',
+        currentStage,
+        currentStageStatus: inProgressStage?.status ?? null,
+        predictedHoursThisWeek: 0,
+        actualHoursPeriod:  hoursByUserProject[`${u.id}:${proj.id}`] ?? 0,
+        stageTimeline,
+        projectEndDate:     proj.target_delivery_date,
+        isHoursOnly:        true,
+      })
+    }
+
+    const projects = [...assignedProjects, ...hoursOnlyProjects]
+
+    const actualHours = Object.entries(hoursByUserProject)
       .filter(([key]) => key.startsWith(`${u.id}:`))
       .reduce((sum, [, h]) => sum + h, 0)
 
-    const predictedHoursPerWeek = +projects
+    // Predicted is based only on formal assignments (hours-only have no allocation)
+    const predictedHoursPerWeek = +assignedProjects
       .reduce((sum, p) => sum + p.predictedHoursThisWeek, 0)
       .toFixed(1)
 
@@ -177,8 +271,13 @@ export default async function StaffingPage({
   })
 
   // ── Summary stats ───────────────────────────────────────────────
+  // Actual% uses last completed week (current week is always in-progress)
   const avgActualPct = utilizationData.length
-    ? Math.round(utilizationData.reduce((s, u) => s + (u.capacityHours > 0 ? (u.actualHours / u.capacityHours) * 100 : 0), 0) / utilizationData.length)
+    ? Math.round(utilizationData.reduce((s, u) => {
+        const capPerWeek = weekCount > 0 ? u.capacityHours / weekCount : (u.capacityHours || 40)
+        const lastWkHours = lastWeekHoursByUser[u.userId] ?? 0
+        return s + (capPerWeek > 0 ? (lastWkHours / capPerWeek) * 100 : 0)
+      }, 0) / utilizationData.length)
     : 0
   // Per-week capacity varies per user; derive it from the period capacity
   const avgPredictedPct = utilizationData.length
@@ -246,7 +345,7 @@ export default async function StaffingPage({
           {/* ── Summary cards ──────────────────────────────────────── */}
           <div className="grid grid-cols-4 gap-4">
             <SummaryCard label="Total Staff"       value={utilizationData.length.toString()} />
-            <SummaryCard label="Avg Actual Util"   value={`${avgActualPct}%`}   sub={periodLabels[period]} />
+            <SummaryCard label="Avg Actual Util"   value={`${avgActualPct}%`}   sub="Last Week" />
             <SummaryCard label="Avg Predicted Util" value={`${avgPredictedPct}%`} sub="this week" />
             <SummaryCard label="Capacity Available" value={availableCount.toString()} sub="< 50% predicted" />
           </div>
@@ -261,33 +360,11 @@ export default async function StaffingPage({
             </div>
             <div className="divide-y">
               {utilizationData.map(u => (
-                <StaffingRow key={u.userId} data={u} weekCount={weekCount} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── Legend ───────────────────────────────────────────── */}
-          <div className="flex items-center gap-6 text-xs text-slate-400 px-1">
-            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-green-400 inline-block" /> &lt; 50%</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-yellow-400 inline-block" /> 50–79%</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-orange-400 inline-block" /> 80–99%</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded bg-red-400 inline-block" /> ≥ 100%</span>
-            <span className="ml-2 text-slate-300">|</span>
-            <span>◐ = In Progress · ● = Complete · ○ = Pending</span>
-          </div>
-
-        </div>
-      </main>
-    </div>
-  )
-}
-
-function SummaryCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-white rounded-lg border p-4">
-      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">{label}</p>
-      <p className="text-2xl font-semibold text-teal-900">{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
-    </div>
-  )
-}
+                <StaffingRow
+                  key={u.userId}
+                  data={u}
+                  weekCount={weekCount}
+                  recentProjectIds={hoursProjectsByUser[u.userId] ?? new Set<string>()}
+                  lastWeekActualHours={lastWeekHoursByUser[u.userId] ?? 0}
+                />
+          

@@ -9,6 +9,8 @@ import { ROLE_DISPLAY } from '@/lib/types'
 interface Props {
   data: UserUtilizationData
   weekCount: number
+  recentProjectIds: Set<string>   // projects with any log entry in last 12 weeks
+  lastWeekActualHours: number     // hours logged in the last completed week
 }
 
 function utilColor(pct: number) {
@@ -47,14 +49,21 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-export default function StaffingRow({ data, weekCount }: Props) {
+export default function StaffingRow({ data, weekCount, recentProjectIds, lastWeekActualHours }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
 
   const capacityHours   = data.capacityHours                     // period total (weekCount × user capacity/wk)
   const capacityPerWeek = weekCount > 0 ? capacityHours / weekCount : 40
-  const actualPct       = capacityHours > 0 ? Math.round((data.actualHours / capacityHours) * 100) : 0
+  // Actual% uses last completed week so it's never 0 just because the current week is in-progress
+  const actualPct       = capacityPerWeek > 0 ? Math.round((lastWeekActualHours / capacityPerWeek) * 100) : 0
   const predictedPct    = capacityPerWeek > 0 ? Math.round((data.predictedHoursPerWeek / capacityPerWeek) * 100) : 0
+
+  // Projects with a log entry in the last 12 weeks → shown first, normal style
+  // Projects with no recent activity → greyed out, shown below
+  const activeProjects   = data.projects.filter(p => recentProjectIds.has(p.projectId))
+  const inactiveProjects = data.projects.filter(p => !recentProjectIds.has(p.projectId))
+  const recentProjectCount = activeProjects.length
 
   return (
     <div className="border-b last:border-b-0">
@@ -71,7 +80,7 @@ export default function StaffingRow({ data, weekCount }: Props) {
           </div>
           {data.projects.length > 0 && (
             <span className="text-xs text-slate-400">
-              {(() => { const c = data.projects.filter(p => p.projectStatus === 'active').length; return `${c} project${c !== 1 ? 's' : ''}` })()}
+              {recentProjectCount} project{recentProjectCount !== 1 ? 's' : ''} (12 wks)
             </span>
           )}
         </div>
@@ -111,84 +120,49 @@ export default function StaffingRow({ data, weekCount }: Props) {
       {expanded && (
         <div className="bg-emerald-50 border-t px-5 pb-4 pt-3 space-y-3">
           {data.projects.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">No active assignments.</p>
+            <p className="text-xs text-slate-400 italic">No assignments or recent hour logs.</p>
           ) : (
-            data.projects.map(project => (
-              <div key={project.projectId} className="bg-white border rounded-lg overflow-hidden">
-                {/* Project summary row */}
-                <div
-                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-emerald-50"
-                  onClick={() => setExpandedProject(expandedProject === project.projectId ? null : project.projectId)}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-slate-400">{expandedProject === project.projectId ? '▼' : '▶'}</span>
-                    <span
-                      className={`w-2 h-2 rounded-full shrink-0 ${
-                        project.projectStatus === 'active' ? 'bg-green-400' :
-                        project.projectStatus === 'on_hold' ? 'bg-yellow-400' : 'bg-emerald-200'
-                      }`}
-                    />
-                    <Link
-                      href={`/projects/${project.projectId}`}
-                      onClick={e => e.stopPropagation()}
-                      className="text-sm font-medium text-teal-900 hover:underline"
-                    >
-                      {project.projectName}
-                    </Link>
-                    {project.currentStage && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">
-                        {project.currentStage.charAt(0).toUpperCase() + project.currentStage.slice(1)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-slate-500">
-                    <span>
-                      <span className="font-medium text-teal-700">{project.allocationPct}%</span> alloc
-                    </span>
-                    <span>
-                      ~<span className="font-medium text-teal-700">{project.predictedHoursThisWeek}h</span>/wk predicted
-                    </span>
-                    {project.actualHoursPeriod > 0 && (
-                      <span>
-                        <span className="font-medium text-teal-700">{project.actualHoursPeriod}h</span> logged
-                      </span>
-                    )}
-                    {project.projectEndDate && (
-                      <span>ends {formatDate(project.projectEndDate)}</span>
-                    )}
-                  </div>
-                </div>
+            <>
+              {/* ── Active projects (logged in last 12 weeks) ── */}
+              {activeProjects.map(project => (
+                <ProjectCard
+                  key={project.projectId}
+                  project={project}
+                  userRole={data.role}
+                  expandedProject={expandedProject}
+                  setExpandedProject={setExpandedProject}
+                  dimmed={false}
+                />
+              ))}
 
-                {/* Stage timeline (expanded) */}
-                {expandedProject === project.projectId && (
-                  <div className="border-t px-4 py-3 space-y-2">
-                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">Stage Timeline</p>
-                    <div className="space-y-1.5">
-                      {project.stageTimeline.map((s, idx) => (
-                        <StageTimelineRow
-                          key={s.stage}
-                          item={s}
-                          isLast={idx === project.stageTimeline.length - 1}
-                        />
-                      ))}
-                    </div>
-                    <p className="text-xs text-slate-400 mt-2 pt-2 border-t">
-                      Role: <span className="text-teal-700">{project.roleLabel || (ROLE_DISPLAY[data.role] ?? data.role)}</span>
-                      {project.projectEndDate && (
-                        <> · Project ends <span className="text-teal-700">{formatDate(project.projectEndDate)}</span></>
-                      )}
+              {/* ── Inactive projects (no logs in last 12 weeks) ── */}
+              {inactiveProjects.length > 0 && (
+                <>
+                  {activeProjects.length > 0 && (
+                    <p className="text-xs text-slate-400 italic px-1 pt-1">
+                      No activity in last 12 weeks:
                     </p>
-                  </div>
-                )}
-              </div>
-            ))
+                  )}
+                  {inactiveProjects.map(project => (
+                    <ProjectCard
+                      key={project.projectId}
+                      project={project}
+                      userRole={data.role}
+                      expandedProject={expandedProject}
+                      setExpandedProject={setExpandedProject}
+                      dimmed={true}
+                    />
+                  ))}
+                </>
+              )}
+            </>
           )}
 
           {/* Totals footer */}
           <div className="flex items-center justify-end gap-6 px-1 pt-1 text-xs text-slate-400 border-t">
             <span>
-              Logged: <span className="font-medium text-teal-700">{data.actualHours}h</span>
-              {' '}/ {capacityHours}h capacity → <span className={`font-semibold ${utilColor(actualPct)}`}>{actualPct}%</span>
+              Last wk logged: <span className="font-medium text-teal-700">{lastWeekActualHours}h</span>
+              {' '}/ {capacityPerWeek}h capacity → <span className={`font-semibold ${utilColor(actualPct)}`}>{actualPct}%</span>
             </span>
             <span>
               Predicted: <span className="font-medium text-teal-700">{data.predictedHoursPerWeek}h/wk</span>
@@ -201,34 +175,80 @@ export default function StaffingRow({ data, weekCount }: Props) {
   )
 }
 
-function StageTimelineRow({ item, isLast }: { item: StageTimelineItem; isLast: boolean }) {
-  const isActive = item.status === 'in_progress'
-  const isDone   = item.status === 'complete'
-
+function ProjectCard({
+  project, userRole, expandedProject, setExpandedProject, dimmed,
+}: {
+  project: import('@/lib/utilization').ProjectBreakdown
+  userRole: string
+  expandedProject: string | null
+  setExpandedProject: (id: string | null) => void
+  dimmed: boolean
+}) {
   return (
-    <div className={`flex items-center gap-3 text-xs ${isDone ? 'opacity-50' : ''}`}>
-      {/* Status dot */}
-      <span className={`text-base leading-none w-4 text-center ${stageStatusColor(item.status)}`}>
-        {stageStatusDot(item.status)}
-      </span>
+    <div className={`bg-white border rounded-lg overflow-hidden transition-opacity ${dimmed ? 'opacity-40' : ''}`}>
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-emerald-50"
+        onClick={() => setExpandedProject(expandedProject === project.projectId ? null : project.projectId)}
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-400">{expandedProject === project.projectId ? '▼' : '▶'}</span>
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              project.projectStatus === 'active' ? 'bg-green-400' :
+              project.projectStatus === 'on_hold' ? 'bg-yellow-400' : 'bg-emerald-200'
+            }`}
+          />
+          <Link
+            href={`/projects/${project.projectId}`}
+            onClick={e => e.stopPropagation()}
+            className="text-sm font-medium text-teal-900 hover:underline"
+          >
+            {project.projectName}
+          </Link>
+          {project.currentStage && (
+            <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">
+              {project.currentStage.charAt(0).toUpperCase() + project.currentStage.slice(1)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-4 text-xs text-slate-500">
+          {project.isHoursOnly ? (
+            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-xs">via hours</span>
+          ) : (
+            <>
+              <span><span className="font-medium text-teal-700">{project.allocationPct}%</span> alloc</span>
+              <span>~<span className="font-medium text-teal-700">{project.predictedHoursThisWeek}h</span>/wk predicted</span>
+            </>
+          )}
+          {project.actualHoursPeriod > 0 && (
+            <span><span className="font-medium text-teal-700">{project.actualHoursPeriod}h</span> logged</span>
+          )}
+          {project.projectEndDate && (
+            <span>ends {formatDate(project.projectEndDate)}</span>
+          )}
+        </div>
+      </div>
 
-      {/* Stage name */}
-      <span className={`w-28 font-medium ${isActive ? 'text-blue-700' : 'text-teal-700'}`}>
-        {item.label}
-        {isActive && <span className="ml-1 text-blue-400 text-xs">← now</span>}
-      </span>
-
-      {/* Date range */}
-      <span className="text-slate-400 w-32">
-        {formatDate(item.estimatedStart)} → {formatDate(item.estimatedEnd)}
-      </span>
-
-      {/* Hours badge */}
-      {item.status !== 'complete' && (
-        <span className="text-slate-500">
-          ~{item.predictedHoursPerWeek}h/wk
-        </span>
+      {expandedProject === project.projectId && (
+        <div className="border-t px-4 py-3 space-y-2">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">Stage Timeline</p>
+          <div className="space-y-1.5">
+            {project.stageTimeline.map((s, idx) => (
+              <StageTimelineRow key={s.stage} item={s} isLast={idx === project.stageTimeline.length - 1} />
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mt-2 pt-2 border-t">
+            Role: <span className="text-teal-700">{project.roleLabel || (ROLE_DISPLAY[userRole] ?? userRole)}</span>
+            {project.projectEndDate && (
+              <> · Project ends <span className="text-teal-700">{formatDate(project.projectEndDate)}</span></>
+            )}
+          </p>
+        </div>
       )}
     </div>
   )
 }
+
+function StageTimelineRow({ item, isLast }: { item: StageTimelineItem; isLast: boolean }) {
+  const isActive = item.status === 'in_progress'
+  con
