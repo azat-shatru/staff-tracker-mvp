@@ -53,6 +53,7 @@ export type ProjectBreakdown = {
   actualHoursPeriod: number        // from weekly_hours
   stageTimeline: StageTimelineItem[]
   projectEndDate: string | null
+  isHoursOnly?: boolean            // inferred from logged hours, no formal assignment
 }
 
 export type UserUtilizationData = {
@@ -101,6 +102,24 @@ export function getPeriodBounds(period: string): { start: string; end: string; w
   const end   = new Date(start)
   end.setDate(end.getDate() + 6)
   return { start: toDateStr(start), end: toDateStr(end), weekCount: 1 }
+}
+
+/**
+ * Effective capacity for a span of weeks, reduced by any leave taken.
+ * Mirrors the Utilization page: max(activeWeeks × capacity/week − leaveHours, 0).
+ * `activeWeeks` = number of weeks the user logged *anything* (work or leave).
+ */
+export function effectiveCapacity(activeWeeks: number, capacityPerWeek: number, leaveHours: number): number {
+  return Math.max(activeWeeks * capacityPerWeek - leaveHours, 0)
+}
+
+/**
+ * Utilization % = workHours / effectiveCapacity, rounded.
+ * Returns 0 when there is no effective capacity (e.g. no entry that week).
+ * Identical to the formula used on the Utilization page (UtilizationDetail).
+ */
+export function utilizationPct(workHours: number, effectiveCap: number): number {
+  return effectiveCap > 0 ? Math.round((workHours / effectiveCap) * 100) : 0
 }
 
 /**

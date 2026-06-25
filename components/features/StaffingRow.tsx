@@ -9,8 +9,11 @@ import { ROLE_DISPLAY } from '@/lib/types'
 interface Props {
   data: UserUtilizationData
   weekCount: number
-  recentProjectIds: Set<string>   // projects with any log entry in last 12 weeks
-  lastWeekActualHours: number     // hours logged in the last completed week
+  recentProjectIds: Set<string>        // projects with any log entry in last 12 weeks
+  lastWeekWorkHours: number            // non-leave hours logged in the last completed week
+  lastWeekLeaveHours: number           // leave hours in the last completed week
+  lastWeekEffectiveCapacity: number    // capacity for that week, reduced by leave
+  actualPct: number                    // last-week utilization % (Utilization-page parity)
 }
 
 function utilColor(pct: number) {
@@ -49,14 +52,17 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-export default function StaffingRow({ data, weekCount, recentProjectIds, lastWeekActualHours }: Props) {
+export default function StaffingRow({
+  data, weekCount, recentProjectIds,
+  lastWeekWorkHours, lastWeekLeaveHours, lastWeekEffectiveCapacity, actualPct,
+}: Props) {
   const [expanded, setExpanded] = useState(false)
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
 
   const capacityHours   = data.capacityHours                     // period total (weekCount × user capacity/wk)
   const capacityPerWeek = weekCount > 0 ? capacityHours / weekCount : 40
-  // Actual% uses last completed week so it's never 0 just because the current week is in-progress
-  const actualPct       = capacityPerWeek > 0 ? Math.round((lastWeekActualHours / capacityPerWeek) * 100) : 0
+  // Actual% is computed upstream from the last completed week, leave-aware, so it
+  // matches the Utilization page (workHours / effectiveCapacity).
   const predictedPct    = capacityPerWeek > 0 ? Math.round((data.predictedHoursPerWeek / capacityPerWeek) * 100) : 0
 
   // Projects with a log entry in the last 12 weeks → shown first, normal style
@@ -161,8 +167,11 @@ export default function StaffingRow({ data, weekCount, recentProjectIds, lastWee
           {/* Totals footer */}
           <div className="flex items-center justify-end gap-6 px-1 pt-1 text-xs text-slate-400 border-t">
             <span>
-              Last wk logged: <span className="font-medium text-teal-700">{lastWeekActualHours}h</span>
-              {' '}/ {capacityPerWeek}h capacity → <span className={`font-semibold ${utilColor(actualPct)}`}>{actualPct}%</span>
+              Last wk logged: <span className="font-medium text-teal-700">{lastWeekWorkHours}h</span>
+              {lastWeekLeaveHours > 0 && (
+                <span className="text-slate-400"> (+{lastWeekLeaveHours}h leave)</span>
+              )}
+              {' '}/ {lastWeekEffectiveCapacity}h capacity → <span className={`font-semibold ${utilColor(actualPct)}`}>{actualPct}%</span>
             </span>
             <span>
               Predicted: <span className="font-medium text-teal-700">{data.predictedHoursPerWeek}h/wk</span>

@@ -11,6 +11,7 @@ import { ROLE_DISPLAY } from '@/lib/types'
 import {
   STAGE_HOURS, CAPACITY_PER_WEEK,
   getPeriodBounds, buildStageTimeline, weekStart, toDateStr,
+  effectiveCapacity, utilizationPct,
   type UserUtilizationData, type ProjectBreakdown,
 } from '@/lib/utilization'
 import StaffingRow from '@/components/features/StaffingRow'
@@ -89,10 +90,10 @@ export default async function StaffingPage({
       .from('projects')
       .select('id, name, status, kickoff_date, target_delivery_date')
       .neq('status', 'archived'),
-    // Last completed week hours per user (for Actual% column)
+    // Last completed week hours per user (for Actual% column — leave-aware)
     supabase
       .from('weekly_hours')
-      .select('user_id, hours_logged')
+      .select('user_id, hours_logged, leave_type')
       .gte('week_start', lastWeekStartStr)
       .lte('week_start', lastWeekEndStr),
   ])
@@ -165,10 +166,35 @@ export default async function StaffingPage({
     hoursProjectsByUser[h.user_id].add(h.project_id)
   }
 
-  // user_id → total hours logged last completed week
-  const lastWeekHoursByUser: Record<string, number> = {}
-  for (const h of (lastWeekHoursData ?? []) as { user_id: string; hours_logged: number }[]) {
-    lastWeekHoursByUser[h.user_id] = (lastWeekHoursByUser[h.user_id] ?? 0) + h.hours_logged
+  // Last completed week, split work vs leave (matches Utilization page formula).
+  // workHours feeds the numerator; leaveHours reduces effective capacity;
+  // any entry (work or leave) marks the week "active" so capacity counts.
+  const lastWeekWorkByUser:  Record<string, number>  = {}
+  const lastWeekLeaveByUser: Record<string, number>  = {}
+  const lastWeekActiveUsers: Set<string>             = new Set()
+  for (const h of (lastWeekHoursData ?? []) as { user_id: string; hours_logged: number; leave_type: string | null }[]) {
+    lastWeekActiveUsers.add(h.user_id)
+    if (h.leave_type) {
+      lastWeekLeaveByUser[h.user_id] = (lastWeekLeaveByUser[h.user_id] ?? 0) + h.hours_logged
+    } else {
+      lastWeekWorkByUser[h.user_id]  = (lastWeekWorkByUser[h.user_id]  ?? 0) + h.hours_logged
+    }
+  }
+
+  // user_id → last-week actual utilization stats (Utilization-page parity)
+  type LastWeekStat = { workHours: number; leaveHours: number; effectiveCapacity: number; actualPct: number }
+  const lastWeekStatByUser: Record<string, LastWeekStat> = {}
+  for (const u of (allUsers ?? []) as UserRow[]) {
+    const workHours  = lastWeekWorkByUser[u.id]  ?? 0
+    const leaveHours = lastWeekLeaveByUser[u.id] ?? 0
+    const capPerWeek = u.capacity_hours ?? CAPACITY_PER_WEEK
+    const activeWeeks = lastWeekActiveUsers.has(u.id) ? 1 : 0
+    const effCap     = effectiveCapacity(activeWeeks, capPerWeek, leaveHours)
+    lastWeekStatByUser[u.id] = {
+      workHours, leaveHours,
+      effectiveCapacity: effCap,
+      actualPct: utilizationPct(workHours, effCap),
+    }
   }
 
   // ── Build utilization data per user ────────────────────────────
@@ -212,7 +238,7 @@ export default async function StaffingPage({
         }
       })
 
-    // Additional projects inferred from hours logged in the past 4 months
+    // Additional projects inferred from hours logged in the past 12 weeks
     // (only those not already covered by a formal assignment)
     const assignedProjIds = new Set(assignedProjects.map(p => p.projectId))
     const userHoursProjIds = hoursProjectsByUser[u.id] ?? new Set<string>()
@@ -271,12 +297,11 @@ export default async function StaffingPage({
   })
 
   // ── Summary stats ───────────────────────────────────────────────
-  // Actual% uses last completed week (current week is always in-progress)
+  // Actual% uses last completed week (current week is always in-progress),
+  // computed leave-aware to match the Utilization page exactly.
   const avgActualPct = utilizationData.length
     ? Math.round(utilizationData.reduce((s, u) => {
-        const capPerWeek = weekCount > 0 ? u.capacityHours / weekCount : (u.capacityHours || 40)
-        const lastWkHours = lastWeekHoursByUser[u.userId] ?? 0
-        return s + (capPerWeek > 0 ? (lastWkHours / capPerWeek) * 100 : 0)
+        return s + (lastWeekStatByUser[u.userId]?.actualPct ?? 0)
       }, 0) / utilizationData.length)
     : 0
   // Per-week capacity varies per user; derive it from the period capacity
@@ -365,7 +390,10 @@ export default async function StaffingPage({
                   data={u}
                   weekCount={weekCount}
                   recentProjectIds={hoursProjectsByUser[u.userId] ?? new Set<string>()}
-                  lastWeekActualHours={lastWeekHoursByUser[u.userId] ?? 0}
+                  lastWeekWorkHours={lastWeekStatByUser[u.userId]?.workHours ?? 0}
+                  lastWeekLeaveHours={lastWeekStatByUser[u.userId]?.leaveHours ?? 0}
+                  lastWeekEffectiveCapacity={lastWeekStatByUser[u.userId]?.effectiveCapacity ?? 0}
+                  actualPct={lastWeekStatByUser[u.userId]?.actualPct ?? 0}
                 />
               ))}
             </div>
