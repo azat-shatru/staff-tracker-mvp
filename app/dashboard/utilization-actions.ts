@@ -1,13 +1,15 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { holidayCreditHours } from '@/lib/utilization'
 
 export type EmployeeDetail = {
   userId:            string
   name:              string
   role:              string
-  totalHours:        number
-  effectiveCapacity: number
+  totalHours:        number   // logged work hours (leave excluded)
+  holidayHours:      number   // holiday credit (8h per holiday in an active week)
+  effectiveCapacity: number   // includes the holiday credit on the denominator
   projects:          { projectId: string; name: string; hours: number }[]
   noEntry:           boolean   // true = active employee with zero logs this period
 }
@@ -58,6 +60,7 @@ export async function fetchUtilizationDetail(
     { data: rows,      error },
     { data: leaveRows         },
     { data: userCapRows       },
+    { data: holidayRows       },
   ] = await Promise.all([
     supabase
       .from('weekly_hours')
@@ -77,6 +80,12 @@ export async function fetchUtilizationDetail(
       .select('id, name, role, capacity_hours')
       .in('role', ['analyst', 'consultant'])
       .eq('active', true),
+    // Holidays in the period (table may not exist yet → null → no adjustment)
+    supabase
+      .from('holidays')
+      .select('holiday_date')
+      .gte('holiday_date', startDate)
+      .lte('holiday_date', endDate),
   ])
 
   if (error) return { error: error.message }
@@ -124,7 +133,7 @@ export async function fetchUtilizationDetail(
     if (!activeWeeksMap[uid]) activeWeeksMap[uid] = new Set()
     activeWeeksMap[uid].add(raw.week_start)
 
-    if (!empMap[uid]) empMap[uid] = { userId: uid, name: uName, role: uRole, totalHours: 0, effectiveCapacity: 0, projects: [], noEntry: false }
+    if (!empMap[uid]) empMap[uid] = { userId: uid, name: uName, role: uRole, totalHours: 0, holidayHours: 0, effectiveCapacity: 0, projects: [], noEntry: false }
     empMap[uid].totalHours += hours
     const ep = empMap[uid].projects.find(p => p.projectId === pid)
     if (ep) { ep.hours += hours }
@@ -134,11 +143,18 @@ export async function fetchUtilizationDetail(
     projMap[pid].totalHours += hours
   }
 
-  // Compute effective capacity
+  // Holiday credit: 8h per holiday that lands in a week the employee was active.
+  // Added to BOTH the numerator (utilized hours, in the UI) and the denominator
+  // (effective capacity here). totalHours stays = logged work for project shares.
+  const holidayDates = ((holidayRows ?? []) as { holiday_date: string }[]).map(h => h.holiday_date)
+
+  // Compute effective capacity (leave- and holiday-adjusted)
   for (const uid of Object.keys(empMap)) {
-    const activeWeeks = activeWeeksMap[uid]?.size ?? 0
-    const leaveHours  = leaveHoursMap[uid] ?? 0
-    empMap[uid].effectiveCapacity = Math.max(activeWeeks * (capacityByUser[uid] ?? 40) - leaveHours, 0)
+    const activeWeeks  = activeWeeksMap[uid]?.size ?? 0
+    const leaveHours   = leaveHoursMap[uid] ?? 0
+    const holidayHours = holidayCreditHours(activeWeeksMap[uid] ?? new Set<string>(), holidayDates)
+    empMap[uid].holidayHours      = holidayHours
+    empMap[uid].effectiveCapacity = Math.max(activeWeeks * (capacityByUser[uid] ?? 40) - leaveHours, 0) + holidayHours
   }
 
   // Add active employees who logged nothing this period — show as "On Leave"
@@ -146,7 +162,7 @@ export async function fetchUtilizationDetail(
     if (!empMap[u.id]) {
       empMap[u.id] = {
         userId: u.id, name: u.name, role: u.role,
-        totalHours: 0, effectiveCapacity: 0,
+        totalHours: 0, holidayHours: 0, effectiveCapacity: 0,
         projects: [], noEntry: true,
       }
     }

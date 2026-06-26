@@ -61,7 +61,9 @@ export default function UtilizationDetailView({ data }: { data: UtilizationDetai
             }
 
             const isExpanded = expandedUser === emp.userId
-            const utilPct  = emp.effectiveCapacity > 0 ? Math.round((emp.totalHours / emp.effectiveCapacity) * 100) : 0
+            // Utilized = logged work + holiday credit (holidays also lift capacity)
+            const utilizedHours = emp.totalHours + emp.holidayHours
+            const utilPct  = emp.effectiveCapacity > 0 ? Math.round((utilizedHours / emp.effectiveCapacity) * 100) : 0
             const barW     = emp.effectiveCapacity > 0
               ? `${Math.min(utilPct, 100)}%`
               : `${Math.round((emp.totalHours / maxHours) * 100)}%`
@@ -87,7 +89,10 @@ export default function UtilizationDetailView({ data }: { data: UtilizationDetai
                         </span>
                         {emp.effectiveCapacity > 0 && (
                           <span className="text-xs text-slate-400">
-                            {emp.totalHours.toFixed(1)}h / {emp.effectiveCapacity.toFixed(0)}h
+                            {utilizedHours.toFixed(1)}h / {emp.effectiveCapacity.toFixed(0)}h
+                            {emp.holidayHours > 0 && (
+                              <span className="text-slate-300"> (incl. {emp.holidayHours}h holiday)</span>
+                            )}
                           </span>
                         )}
                         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${

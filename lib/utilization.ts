@@ -104,6 +104,33 @@ export function getPeriodBounds(period: string): { start: string; end: string; w
   return { start: toDateStr(start), end: toDateStr(end), weekCount: 1 }
 }
 
+/** Monday (YYYY-MM-DD) of the week containing the given YYYY-MM-DD date string. */
+export function weekStartStr(dateStr: string): string {
+  // Parse as local midnight to avoid timezone day-shift on date-only strings.
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return toDateStr(weekStart(new Date(y, m - 1, d)))
+}
+
+export const HOLIDAY_HOURS = 8  // hours credited per holiday day (both numerator & denominator)
+
+/**
+ * Holiday credit hours for an employee: HOLIDAY_HOURS per holiday that falls in a
+ * week the employee was active (logged something). Counted once per holiday, so
+ * two holidays in the same active week contribute 2 × HOLIDAY_HOURS.
+ * The same value is added to BOTH the numerator (work hours) and the denominator
+ * (effective capacity) of the utilization calc.
+ */
+export function holidayCreditHours(
+  activeWeekStarts: Set<string>,        // Mondays (YYYY-MM-DD) of weeks the user logged in
+  holidayDates: Iterable<string>,       // holiday dates (YYYY-MM-DD)
+): number {
+  let total = 0
+  for (const h of holidayDates) {
+    if (activeWeekStarts.has(weekStartStr(h))) total += HOLIDAY_HOURS
+  }
+  return total
+}
+
 /**
  * Effective capacity for a span of weeks, reduced by any leave taken.
  * Mirrors the Utilization page: max(activeWeeks × capacity/week − leaveHours, 0).

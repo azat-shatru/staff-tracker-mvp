@@ -12,7 +12,8 @@ interface Props {
   recentProjectIds: Set<string>        // projects with any log entry in last 12 weeks
   lastWeekWorkHours: number            // non-leave hours logged in the last completed week
   lastWeekLeaveHours: number           // leave hours in the last completed week
-  lastWeekEffectiveCapacity: number    // capacity for that week, reduced by leave
+  lastWeekHolidayHours: number         // holiday credit (8h per holiday) added to both sides
+  lastWeekEffectiveCapacity: number    // final denominator (after leave & holiday)
   actualPct: number                    // last-week utilization % (Utilization-page parity)
 }
 
@@ -54,7 +55,7 @@ function formatDate(d: string) {
 
 export default function StaffingRow({
   data, weekCount, recentProjectIds,
-  lastWeekWorkHours, lastWeekLeaveHours, lastWeekEffectiveCapacity, actualPct,
+  lastWeekWorkHours, lastWeekLeaveHours, lastWeekHolidayHours, lastWeekEffectiveCapacity, actualPct,
 }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
@@ -168,6 +169,9 @@ export default function StaffingRow({
           <div className="flex items-center justify-end gap-6 px-1 pt-1 text-xs text-slate-400 border-t">
             <span>
               Last wk logged: <span className="font-medium text-teal-700">{lastWeekWorkHours}h</span>
+              {lastWeekHolidayHours > 0 && (
+                <span className="text-slate-400"> (+{lastWeekHolidayHours}h holiday)</span>
+              )}
               {lastWeekLeaveHours > 0 && (
                 <span className="text-slate-400"> (+{lastWeekLeaveHours}h leave)</span>
               )}
