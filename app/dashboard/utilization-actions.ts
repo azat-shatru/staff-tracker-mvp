@@ -8,8 +8,8 @@ export type EmployeeDetail = {
   name:              string
   role:              string
   totalHours:        number   // logged work hours (leave excluded)
-  holidayHours:      number   // holiday credit (8h per holiday in an active week)
-  effectiveCapacity: number   // includes the holiday credit on the denominator
+  holidayHours:      number   // holiday credit (8h per holiday in an active week) — numerator only
+  effectiveCapacity: number   // leave-adjusted capacity (holiday credit NOT added here)
   projects:          { projectId: string; name: string; hours: number }[]
   noEntry:           boolean   // true = active employee with zero logs this period
 }
@@ -144,17 +144,17 @@ export async function fetchUtilizationDetail(
   }
 
   // Holiday credit: 8h per holiday that lands in a week the employee was active.
-  // Added to BOTH the numerator (utilized hours, in the UI) and the denominator
-  // (effective capacity here). totalHours stays = logged work for project shares.
+  // Added to the NUMERATOR (utilized hours, in the UI) only — capacity is unchanged.
+  // totalHours stays = logged work for project shares.
   const holidayDates = ((holidayRows ?? []) as { holiday_date: string }[]).map(h => h.holiday_date)
 
-  // Compute effective capacity (leave- and holiday-adjusted)
+  // Compute effective capacity (leave-adjusted; holiday credit is NOT added here)
   for (const uid of Object.keys(empMap)) {
     const activeWeeks  = activeWeeksMap[uid]?.size ?? 0
     const leaveHours   = leaveHoursMap[uid] ?? 0
     const holidayHours = holidayCreditHours(activeWeeksMap[uid] ?? new Set<string>(), holidayDates)
     empMap[uid].holidayHours      = holidayHours
-    empMap[uid].effectiveCapacity = Math.max(activeWeeks * (capacityByUser[uid] ?? 40) - leaveHours, 0) + holidayHours
+    empMap[uid].effectiveCapacity = Math.max(activeWeeks * (capacityByUser[uid] ?? 40) - leaveHours, 0)
   }
 
   // Add active employees who logged nothing this period — show as "On Leave"

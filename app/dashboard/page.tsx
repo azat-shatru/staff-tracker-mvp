@@ -188,11 +188,11 @@ export default async function DashboardPage() {
       const leaveHours = leaveByUser[uid] ?? 0
       return sum + Math.max((userCapacity[uid] ?? 40) - leaveHours, 0)
     }, 0)
-    // Holiday credit: 8h per holiday that week, per active user, added to BOTH sides.
+    // Holiday credit: 8h per holiday that week, per active user, added to the
+    // numerator only — capacity (denominator) is unchanged.
     const holidayCredit = (holidayCountByWeek[weekStr] ?? 0) * HOLIDAY_HOURS * activeUsers.size
     const num = workHours + holidayCredit
-    const den = totalEffCap + holidayCredit
-    const pct = den > 0 ? Math.round((num / den) * 100) : 0
+    const pct = totalEffCap > 0 ? Math.round((num / totalEffCap) * 100) : 0
     return { pct, workHours, totalEffCap }
   }
 

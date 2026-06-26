@@ -1,8 +1,8 @@
 -- migration_010_holidays.sql
 -- Company holiday calendar. One row per holiday date.
 -- Used by the utilization calc: for any week containing a holiday, an employee
--- who logged hours that week gets +8h added to BOTH the numerator (work hours)
--- and the denominator (effective capacity), per holiday in that week.
+-- who logged hours that week gets +8h per holiday added to the NUMERATOR
+-- (work hours) only — the denominator (effective capacity) is unchanged.
 -- If a year has no rows here, that year simply has no holidays (no adjustment).
 
 CREATE TABLE IF NOT EXISTS public.holidays (

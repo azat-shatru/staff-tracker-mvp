@@ -33,7 +33,7 @@ A Next.js 16 (Turbopack) staff tracking app deployed on Vercel. Supabase is the 
 
 ## Utilization calculation (single source of truth)
 - Per active week: `effectiveCapacity = max(activeWeeks × capacity/week − leaveHours, 0)`; `utilization% = workHours / effectiveCapacity`. Leave is excluded from the numerator and reduces capacity. A week is "active" if the user logged anything (work or leave) that week.
-- **Holiday credit**: for any week containing a holiday, each employee who logged that week gets `+8h per holiday` (`HOLIDAY_HOURS`) added to **both** numerator and denominator. Two holidays in one week → +16h. Years with no `holidays` rows → no adjustment.
+- **Holiday credit**: for any week containing a holiday, each employee who logged that week gets `+8h per holiday` (`HOLIDAY_HOURS`) added to the **numerator only** (work hours); the denominator (effective capacity) is unchanged. Two holidays in one week → +16h. Years with no `holidays` rows → no adjustment.
 - Applied identically in three places via the shared helpers: Staffing matrix `Actual %` (last completed week), Utilization page (`utilization-actions.ts` / `UtilizationDetail`), and the dashboard 12-week trend + last-week widget (`dashboard/page.tsx` `weekUtil`).
 - `Actual %` everywhere uses the **last completed week** (the current week is always in-progress).
 

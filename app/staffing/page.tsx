@@ -190,7 +190,7 @@ export default async function StaffingPage({
   }
 
   // Holiday credit for the last completed week: 8h per holiday in that week,
-  // applied to anyone who logged something that week (added to BOTH sides).
+  // applied to anyone who logged something that week (numerator only).
   const holidayHoursLastWeek = HOLIDAY_HOURS * (((lastWeekHolidays ?? []) as { holiday_date: string }[]).length)
 
   // user_id → last-week actual utilization stats (Utilization-page parity)
@@ -205,9 +205,8 @@ export default async function StaffingPage({
     const capPerWeek  = u.capacity_hours ?? CAPACITY_PER_WEEK
     const active      = lastWeekActiveUsers.has(u.id)
     const holidayHours = active ? holidayHoursLastWeek : 0
-    // Holiday hours add to both numerator (work) and denominator (capacity).
-    const baseCap     = effectiveCapacity(active ? 1 : 0, capPerWeek, leaveHours)
-    const denominator = baseCap + holidayHours
+    // Holiday hours add to the numerator (work) only; capacity is unchanged.
+    const denominator = effectiveCapacity(active ? 1 : 0, capPerWeek, leaveHours)
     const numerator   = workHours + holidayHours
     lastWeekStatByUser[u.id] = {
       workHours, leaveHours, holidayHours,

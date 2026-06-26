@@ -117,8 +117,8 @@ export const HOLIDAY_HOURS = 8  // hours credited per holiday day (both numerato
  * Holiday credit hours for an employee: HOLIDAY_HOURS per holiday that falls in a
  * week the employee was active (logged something). Counted once per holiday, so
  * two holidays in the same active week contribute 2 × HOLIDAY_HOURS.
- * The same value is added to BOTH the numerator (work hours) and the denominator
- * (effective capacity) of the utilization calc.
+ * This value is added to the NUMERATOR (work hours) of the utilization calc only —
+ * the denominator (effective capacity) is left unchanged.
  */
 export function holidayCreditHours(
   activeWeekStarts: Set<string>,        // Mondays (YYYY-MM-DD) of weeks the user logged in
