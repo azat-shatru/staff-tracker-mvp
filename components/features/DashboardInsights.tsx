@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 interface Props {
   lastWeekUtil:            { pct: number; hoursLogged: number; effectiveCapacity: number }
-  pastWeeklyUtil:          Array<{ label: string; pct: number; weekStart: string }>
+  pastWeeklyUtil:          Array<{ label: string; pct: number; weekStart: string; holiday: boolean; holidayLabel: string }>
   projectedCurrentWeekPct: number
   projectedByWeek:         Array<{ label: string; hours: number }>
   employeeCount:           number
@@ -35,8 +35,8 @@ export default function DashboardInsights({
   const dashOffset  = circumference - (Math.min(dialPct, 100) / 100) * circumference
 
   const bars = isPast
-    ? pastWeeklyUtil.map(w => ({ label: w.label, value: w.pct, weekStart: w.weekStart }))
-    : projectedByWeek.map(w => ({ label: w.label, value: w.hours, weekStart: '' }))
+    ? pastWeeklyUtil.map(w => ({ label: w.label, value: w.pct, weekStart: w.weekStart, holiday: w.holiday, holidayLabel: w.holidayLabel }))
+    : projectedByWeek.map(w => ({ label: w.label, value: w.hours, weekStart: '', holiday: false, holidayLabel: '' }))
 
   const refLine  = isPast ? 100 : employeeCount * 40
   const maxValue = Math.max(...bars.map(b => b.value), refLine, 1)
@@ -135,6 +135,9 @@ export default function DashboardInsights({
                 const clickable = isPast && canDrillDown
 
                 const Column = clickable ? 'button' : 'div'
+                const colTitle = b.holiday
+                  ? `${clickable ? `View details for ${b.label}` : b.label} · Holiday: ${b.holidayLabel}`
+                  : (clickable ? `View details for ${b.label}` : undefined)
                 return (
                   <Column
                     key={i}
@@ -143,11 +146,19 @@ export default function DashboardInsights({
                         ? ' cursor-pointer hover:bg-teal-50/60 rounded focus:outline-none focus:ring-1 focus:ring-teal-400 group'
                         : ''
                     }`}
+                    {...(colTitle ? { title: colTitle } : {})}
                     {...(clickable ? {
-                      title: `View details for ${b.label}`,
                       onClick: () => router.push(`/dashboard/utilization/${b.weekStart}`),
                     } : {})}
                   >
+                    {isPast && b.holiday && (
+                      <span
+                        className="absolute left-1/2 -translate-x-1/2 z-20 flex items-center justify-center rounded-[3px] bg-amber-400 text-white font-bold pointer-events-none"
+                        style={{ bottom: `calc(${Math.max(heightPct, 4)}% + 11px)`, width: '13px', height: '13px', fontSize: '8px' }}
+                      >
+                        H
+                      </span>
+                    )}
                     {b.value > 0 && (
                       <span
                         className="absolute text-teal-700 font-medium leading-none whitespace-nowrap pointer-events-none"

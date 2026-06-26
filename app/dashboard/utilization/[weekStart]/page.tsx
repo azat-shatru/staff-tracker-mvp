@@ -96,6 +96,20 @@ export default async function UtilizationDetailPage({
                   </p>
                 )
               })()}
+              {data && data.holidays.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {data.holidays.map(h => (
+                    <span
+                      key={h.date}
+                      className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800"
+                    >
+                      <span className="font-semibold">H</span>
+                      {new Date(h.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      <span className="text-amber-600">· {h.name}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Period tabs */}

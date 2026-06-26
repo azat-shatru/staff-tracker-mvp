@@ -101,12 +101,13 @@ export default async function DashboardPage() {
       .select('project_id')
       .gte('week_start', thirtyDaysAgoStr)
       .not('project_id', 'is', null),
-    // Holidays over the 12-week look-back (table may not exist yet → null → no adjustment)
+    // Holidays over the 12-week look-back (table may not exist yet → null → no adjustment).
+    // Upper bound = Sunday of the last completed week (holidays can fall mid-week).
     supabase
       .from('holidays')
-      .select('holiday_date')
+      .select('holiday_date, name')
       .gte('holiday_date', (() => { const d = new Date(prevMonday); d.setDate(d.getDate() - 11 * 7); return d.toISOString().split('T')[0] })())
-      .lte('holiday_date', prevWeekStr),
+      .lte('holiday_date', (() => { const d = new Date(prevMonday); d.setDate(d.getDate() + 6); return d.toISOString().split('T')[0] })()),
   ])
 
   // Map project_id → reporting completed_at
@@ -170,11 +171,15 @@ export default async function DashboardPage() {
     }
   }
 
-  // Holidays per week (Monday) → count, for the holiday credit (8h per holiday).
+  // Holidays per week (Monday) → count (for credit) and labels (for the "H" marker).
   const holidayCountByWeek: Record<string, number> = {}
-  for (const h of ((holidayRows ?? []) as { holiday_date: string }[])) {
+  const holidayLabelByWeek: Record<string, string> = {}
+  for (const h of ((holidayRows ?? []) as { holiday_date: string; name: string }[])) {
     const wk = weekStartStr(h.holiday_date)
     holidayCountByWeek[wk] = (holidayCountByWeek[wk] ?? 0) + 1
+    const dayLabel = new Date(h.holiday_date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    const entry = `${h.name} (${dayLabel})`
+    holidayLabelByWeek[wk] = holidayLabelByWeek[wk] ? `${holidayLabelByWeek[wk]}, ${entry}` : entry
   }
 
   function weekUtil(weekStr: string) {
@@ -207,7 +212,11 @@ export default async function DashboardPage() {
     const { pct } = weekUtil(weekStr)
     const weekDate = new Date(weekStr)
     const label = weekDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-    return { label, pct, weekStart: weekStr }
+    return {
+      label, pct, weekStart: weekStr,
+      holiday:      (holidayCountByWeek[weekStr] ?? 0) > 0,
+      holidayLabel: holidayLabelByWeek[weekStr] ?? '',
+    }
   })
 
   const lastWeekUtilData = weekUtil(prevWeekStr)

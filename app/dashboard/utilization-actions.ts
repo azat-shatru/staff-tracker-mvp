@@ -25,6 +25,7 @@ export type UtilizationDetail = {
   byProject:   ProjectDetail[]
   totalHours:  number
   periodLabel: string
+  holidays:    { date: string; name: string }[]   // holidays falling in this period
 }
 
 export async function fetchUtilizationDetail(
@@ -56,6 +57,16 @@ export async function fetchUtilizationDetail(
     periodLabel = String(ref.getFullYear())
   }
 
+  // Holidays are stored by their real calendar date, so the week period must span
+  // the full Mon–Sun week (startDate/endDate are both the Monday for hours queries).
+  let holidayStart = startDate
+  let holidayEnd   = endDate
+  if (period === 'week') {
+    const [y, m, d] = weekStart.split('-').map(Number)
+    holidayStart = weekStart
+    holidayEnd   = new Date(Date.UTC(y, m - 1, d + 6)).toISOString().split('T')[0]
+  }
+
   const [
     { data: rows,      error },
     { data: leaveRows         },
@@ -83,9 +94,10 @@ export async function fetchUtilizationDetail(
     // Holidays in the period (table may not exist yet → null → no adjustment)
     supabase
       .from('holidays')
-      .select('holiday_date')
-      .gte('holiday_date', startDate)
-      .lte('holiday_date', endDate),
+      .select('holiday_date, name')
+      .gte('holiday_date', holidayStart)
+      .lte('holiday_date', holidayEnd)
+      .order('holiday_date'),
   ])
 
   if (error) return { error: error.message }
@@ -146,7 +158,8 @@ export async function fetchUtilizationDetail(
   // Holiday credit: 8h per holiday that lands in a week the employee was active.
   // Added to the NUMERATOR (utilized hours, in the UI) only — capacity is unchanged.
   // totalHours stays = logged work for project shares.
-  const holidayDates = ((holidayRows ?? []) as { holiday_date: string }[]).map(h => h.holiday_date)
+  const holidayList  = ((holidayRows ?? []) as { holiday_date: string; name: string }[])
+  const holidayDates = holidayList.map(h => h.holiday_date)
 
   // Compute effective capacity (leave-adjusted; holiday credit is NOT added here)
   for (const uid of Object.keys(empMap)) {
@@ -176,5 +189,7 @@ export async function fetchUtilizationDetail(
   const byProject  = Object.values(projMap).sort((a, b) => b.totalHours - a.totalHours)
   const totalHours = withHours.reduce((s, e) => s + e.totalHours, 0)
 
-  return { data: { byEmployee, byProject, totalHours, periodLabel } }
+  const holidays = holidayList.map(h => ({ date: h.holiday_date, name: h.name }))
+
+  return { data: { byEmployee, byProject, totalHours, periodLabel, holidays } }
 }
