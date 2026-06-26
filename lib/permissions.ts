@@ -33,5 +33,7 @@ export function getPermissions(role: Role | undefined) {
     canUseDailyLog:            role === 'manager' || role === 'consultant' || role === 'analyst',
     // Team status tiles: same group can view the full team's daily status
     canViewTeamStatus:         role === 'manager' || role === 'consultant' || role === 'analyst',
+    // Holiday calendar upload/management (director is read-only, so excluded)
+    canManageHolidays:         role === 'manager' || role === 'executive',
   }
 }

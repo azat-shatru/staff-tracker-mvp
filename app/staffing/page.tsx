@@ -9,7 +9,7 @@ import { getPermissions } from '@/lib/permissions'
 import type { Role } from '@/lib/types'
 import { ROLE_DISPLAY } from '@/lib/types'
 import {
-  STAGE_HOURS, CAPACITY_PER_WEEK,
+  STAGE_HOURS, CAPACITY_PER_WEEK, HOLIDAY_HOURS,
   getPeriodBounds, buildStageTimeline, weekStart, toDateStr,
   effectiveCapacity, utilizationPct,
   type UserUtilizationData, type ProjectBreakdown,
@@ -62,6 +62,7 @@ export default async function StaffingPage({
     { data: recentHoursLinks },
     { data: allProjectsFlat },
     { data: lastWeekHoursData },
+    { data: lastWeekHolidays },
   ] = await Promise.all([
     supabase.from('users').select('id, name, role, capacity_hours').in('role', ['analyst', 'consultant']).eq('active', true).order('name').limit(500),
     supabase
@@ -96,6 +97,13 @@ export default async function StaffingPage({
       .select('user_id, hours_logged, leave_type')
       .gte('week_start', lastWeekStartStr)
       .lte('week_start', lastWeekEndStr),
+    // Holidays falling in the last completed week (for Actual% holiday credit).
+    // Table may not exist yet → query simply returns null and credit is 0.
+    supabase
+      .from('holidays')
+      .select('holiday_date')
+      .gte('holiday_date', lastWeekStartStr)
+      .lte('holiday_date', lastWeekEndStr),
   ])
 
   // ── Index helpers ───────────────────────────────────────────────
@@ -181,19 +189,30 @@ export default async function StaffingPage({
     }
   }
 
+  // Holiday credit for the last completed week: 8h per holiday in that week,
+  // applied to anyone who logged something that week (added to BOTH sides).
+  const holidayHoursLastWeek = HOLIDAY_HOURS * (((lastWeekHolidays ?? []) as { holiday_date: string }[]).length)
+
   // user_id → last-week actual utilization stats (Utilization-page parity)
-  type LastWeekStat = { workHours: number; leaveHours: number; effectiveCapacity: number; actualPct: number }
+  type LastWeekStat = {
+    workHours: number; leaveHours: number; holidayHours: number
+    effectiveCapacity: number; actualPct: number
+  }
   const lastWeekStatByUser: Record<string, LastWeekStat> = {}
   for (const u of (allUsers ?? []) as UserRow[]) {
-    const workHours  = lastWeekWorkByUser[u.id]  ?? 0
-    const leaveHours = lastWeekLeaveByUser[u.id] ?? 0
-    const capPerWeek = u.capacity_hours ?? CAPACITY_PER_WEEK
-    const activeWeeks = lastWeekActiveUsers.has(u.id) ? 1 : 0
-    const effCap     = effectiveCapacity(activeWeeks, capPerWeek, leaveHours)
+    const workHours   = lastWeekWorkByUser[u.id]  ?? 0
+    const leaveHours  = lastWeekLeaveByUser[u.id] ?? 0
+    const capPerWeek  = u.capacity_hours ?? CAPACITY_PER_WEEK
+    const active      = lastWeekActiveUsers.has(u.id)
+    const holidayHours = active ? holidayHoursLastWeek : 0
+    // Holiday hours add to both numerator (work) and denominator (capacity).
+    const baseCap     = effectiveCapacity(active ? 1 : 0, capPerWeek, leaveHours)
+    const denominator = baseCap + holidayHours
+    const numerator   = workHours + holidayHours
     lastWeekStatByUser[u.id] = {
-      workHours, leaveHours,
-      effectiveCapacity: effCap,
-      actualPct: utilizationPct(workHours, effCap),
+      workHours, leaveHours, holidayHours,
+      effectiveCapacity: denominator,
+      actualPct: utilizationPct(numerator, denominator),
     }
   }
 
@@ -392,6 +411,7 @@ export default async function StaffingPage({
                   recentProjectIds={hoursProjectsByUser[u.userId] ?? new Set<string>()}
                   lastWeekWorkHours={lastWeekStatByUser[u.userId]?.workHours ?? 0}
                   lastWeekLeaveHours={lastWeekStatByUser[u.userId]?.leaveHours ?? 0}
+                  lastWeekHolidayHours={lastWeekStatByUser[u.userId]?.holidayHours ?? 0}
                   lastWeekEffectiveCapacity={lastWeekStatByUser[u.userId]?.effectiveCapacity ?? 0}
                   actualPct={lastWeekStatByUser[u.userId]?.actualPct ?? 0}
                 />

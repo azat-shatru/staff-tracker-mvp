@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import ProjectList from '@/components/features/ProjectList'
 import Link from 'next/link'
 import { getPermissions } from '@/lib/permissions'
-import { weekStart, toDateStr, buildStageTimeline } from '@/lib/utilization'
+import { weekStart, toDateStr, buildStageTimeline, weekStartStr, HOLIDAY_HOURS } from '@/lib/utilization'
 import DashboardInsights from '@/components/features/DashboardInsights'
 import type { Project, Role } from '@/lib/types'
 import { ROLE_DISPLAY } from '@/lib/types'
@@ -68,6 +68,7 @@ export default async function DashboardPage() {
     { data: allStages },
     { data: allStageNotes },
     { data: recentHours },
+    { data: holidayRows },
   ] = await Promise.all([
     supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(500),
     supabase.from('users').select('id, name, role, capacity_hours').in('role', ['analyst', 'consultant']).order('name').limit(500),
@@ -100,6 +101,12 @@ export default async function DashboardPage() {
       .select('project_id')
       .gte('week_start', thirtyDaysAgoStr)
       .not('project_id', 'is', null),
+    // Holidays over the 12-week look-back (table may not exist yet → null → no adjustment)
+    supabase
+      .from('holidays')
+      .select('holiday_date')
+      .gte('holiday_date', (() => { const d = new Date(prevMonday); d.setDate(d.getDate() - 11 * 7); return d.toISOString().split('T')[0] })())
+      .lte('holiday_date', prevWeekStr),
   ])
 
   // Map project_id → reporting completed_at
@@ -163,6 +170,13 @@ export default async function DashboardPage() {
     }
   }
 
+  // Holidays per week (Monday) → count, for the holiday credit (8h per holiday).
+  const holidayCountByWeek: Record<string, number> = {}
+  for (const h of ((holidayRows ?? []) as { holiday_date: string }[])) {
+    const wk = weekStartStr(h.holiday_date)
+    holidayCountByWeek[wk] = (holidayCountByWeek[wk] ?? 0) + 1
+  }
+
   function weekUtil(weekStr: string) {
     const bucket = weekBuckets[weekStr]
     const workHours = bucket?.workHours ?? 0
@@ -174,7 +188,11 @@ export default async function DashboardPage() {
       const leaveHours = leaveByUser[uid] ?? 0
       return sum + Math.max((userCapacity[uid] ?? 40) - leaveHours, 0)
     }, 0)
-    const pct = totalEffCap > 0 ? Math.round((workHours / totalEffCap) * 100) : 0
+    // Holiday credit: 8h per holiday that week, per active user, added to BOTH sides.
+    const holidayCredit = (holidayCountByWeek[weekStr] ?? 0) * HOLIDAY_HOURS * activeUsers.size
+    const num = workHours + holidayCredit
+    const den = totalEffCap + holidayCredit
+    const pct = den > 0 ? Math.round((num / den) * 100) : 0
     return { pct, workHours, totalEffCap }
   }
 
@@ -293,6 +311,11 @@ export default async function DashboardPage() {
               <Link href="/employees" className="text-sm text-teal-100 hover:text-white transition-colors">
                 Employees
               </Link>
+              {perms.canManageHolidays && (
+                <Link href="/holidays" className="text-sm text-teal-100 hover:text-white transition-colors">
+                  Holidays
+                </Link>
+              )}
             </>
           )}
           {perms.canUseDailyLog && (
