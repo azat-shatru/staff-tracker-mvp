@@ -104,14 +104,21 @@ export function getPeriodBounds(period: string): { start: string; end: string; w
   return { start: toDateStr(start), end: toDateStr(end), weekCount: 1 }
 }
 
-/** Monday (YYYY-MM-DD) of the week containing the given YYYY-MM-DD date string. */
+/**
+ * Monday (YYYY-MM-DD) of the week containing the given YYYY-MM-DD date string.
+ * Computed entirely in UTC so the result never shifts by the runtime timezone
+ * (matches the Monday `week_start` values stored in weekly_hours).
+ */
 export function weekStartStr(dateStr: string): string {
-  // Parse as local midnight to avoid timezone day-shift on date-only strings.
   const [y, m, d] = dateStr.split('-').map(Number)
-  return toDateStr(weekStart(new Date(y, m - 1, d)))
+  const dt  = new Date(Date.UTC(y, m - 1, d))
+  const day = dt.getUTCDay()                 // 0 = Sun, 1 = Mon …
+  const diff = day === 0 ? -6 : 1 - day
+  dt.setUTCDate(dt.getUTCDate() + diff)
+  return dt.toISOString().split('T')[0]
 }
 
-export const HOLIDAY_HOURS = 8  // hours credited per holiday day (both numerator & denominator)
+export const HOLIDAY_HOURS = 8  // hours credited per holiday day (numerator only)
 
 /**
  * Holiday credit hours for an employee: HOLIDAY_HOURS per holiday that falls in a
