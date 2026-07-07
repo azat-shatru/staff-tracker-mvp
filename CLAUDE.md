@@ -37,6 +37,12 @@ A Next.js 16 (Turbopack) staff tracking app deployed on Vercel. Supabase is the 
 - Applied identically in three places via the shared helpers: Staffing matrix `Actual %` (last completed week), Utilization page (`utilization-actions.ts` / `UtilizationDetail`), and the dashboard 12-week trend + last-week widget (`dashboard/page.tsx` `weekUtil`).
 - `Actual %` everywhere uses the **last completed week** (the current week is always in-progress).
 
+## Who appears in the workload tracker
+- The tracker views (Staffing matrix, Utilization drill-down, dashboard trend/widget, Excel export) normally show **analysts + consultants only**. Managers are excluded even though logging hours (`/log-hours`) is never role-gated — anyone authenticated can log, but only tracked roles surface.
+- **Allow-list**: `lib/tracked-managers.ts` holds `TRACKED_MANAGER_IDS` (specific managers explicitly enabled) plus `TRACKED_USERS_OR_FILTER` (a PostgREST `.or()` fragment = `role.in.(analyst,consultant),id.in.(<ids>)`) and `TRACKED_MANAGER_ID_SET` (for row-level filtering).
+- All four tracker queries use `.or(TRACKED_USERS_OR_FILTER)` **instead of** `.in('role', ['analyst','consultant'])`: `app/staffing/page.tsx`, `app/dashboard/page.tsx` (the `allUsers` query — **not** the separate `managers` dropdown query), `app/api/utilization-export/route.ts`, and `app/dashboard/utilization-actions.ts` (which also filters rows via `TRACKED_MANAGER_ID_SET`).
+- **To enable another manager**: add their user id to `TRACKED_MANAGER_IDS` — no query changes needed. Currently enabled (added 2026-07-07): Azat Shatru, Swathi Bonthu, Manan Shah, Sruthi Reddy.
+
 ## Dashboard project list behaviour
 - Projects with recent stage activity (last 7 days) or newly created appear at the top
 - Older projects are hidden behind a collapsible toggle row
