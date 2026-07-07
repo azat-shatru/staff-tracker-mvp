@@ -11,6 +11,7 @@ import { weekStart, toDateStr, buildStageTimeline, weekStartStr, HOLIDAY_HOURS }
 import DashboardInsights from '@/components/features/DashboardInsights'
 import type { Project, Role } from '@/lib/types'
 import { ROLE_DISPLAY } from '@/lib/types'
+import { TRACKED_USERS_OR_FILTER } from '@/lib/tracked-managers'
 
 function getEfficiency(
   project: Project,
@@ -71,7 +72,7 @@ export default async function DashboardPage() {
     { data: holidayRows },
   ] = await Promise.all([
     supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(500),
-    supabase.from('users').select('id, name, role, capacity_hours').in('role', ['analyst', 'consultant']).order('name').limit(500),
+    supabase.from('users').select('id, name, role, capacity_hours').or(TRACKED_USERS_OR_FILTER).order('name').limit(500),
     supabase.from('users').select('id, name, role').eq('role', 'manager').order('name').limit(200),
     supabase
       .from('project_stages')

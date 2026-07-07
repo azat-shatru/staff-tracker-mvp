@@ -15,6 +15,7 @@ import {
   type UserUtilizationData, type ProjectBreakdown,
 } from '@/lib/utilization'
 import StaffingRow from '@/components/features/StaffingRow'
+import { TRACKED_USERS_OR_FILTER } from '@/lib/tracked-managers'
 
 export default async function StaffingPage({
   searchParams,
@@ -64,7 +65,7 @@ export default async function StaffingPage({
     { data: lastWeekHoursData },
     { data: lastWeekHolidays },
   ] = await Promise.all([
-    supabase.from('users').select('id, name, role, capacity_hours').in('role', ['analyst', 'consultant']).eq('active', true).order('name').limit(500),
+    supabase.from('users').select('id, name, role, capacity_hours').or(TRACKED_USERS_OR_FILTER).eq('active', true).order('name').limit(500),
     supabase
       .from('assignments')
       .select('id, user_id, project_id, role_label, allocation_pct, project:projects(id, name, status, kickoff_date, target_delivery_date)').limit(1000),

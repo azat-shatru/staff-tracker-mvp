@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getPermissions } from '@/lib/permissions'
 import { weekStart, toDateStr } from '@/lib/utilization'
 import type { Role } from '@/lib/types'
+import { TRACKED_USERS_OR_FILTER } from '@/lib/tracked-managers'
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
   })
 
   const [{ data: allUsers }, { data: allHours }] = await Promise.all([
-    supabase.from('users').select('id, name, capacity_hours').in('role', ['analyst', 'consultant']).order('name').limit(500),
+    supabase.from('users').select('id, name, capacity_hours').or(TRACKED_USERS_OR_FILTER).order('name').limit(500),
     supabase
       .from('weekly_hours')
       .select('user_id, hours_logged, week_start, leave_type')

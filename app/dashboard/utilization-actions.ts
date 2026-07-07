@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { holidayCreditHours } from '@/lib/utilization'
+import { TRACKED_USERS_OR_FILTER, TRACKED_MANAGER_ID_SET } from '@/lib/tracked-managers'
 
 export type EmployeeDetail = {
   userId:            string
@@ -89,7 +90,7 @@ export async function fetchUtilizationDetail(
     supabase
       .from('users')
       .select('id, name, role, capacity_hours')
-      .in('role', ['analyst', 'consultant'])
+      .or(TRACKED_USERS_OR_FILTER)
       .eq('active', true),
     // Holidays in the period (table may not exist yet → null → no adjustment)
     supabase
@@ -135,7 +136,7 @@ export async function fetchUtilizationDetail(
 
   for (const raw of (rows ?? []) as unknown as Row[]) {
     const uRole = raw.users?.role ?? ''
-    if (!['analyst', 'consultant'].includes(uRole)) continue
+    if (!['analyst', 'consultant'].includes(uRole) && !TRACKED_MANAGER_ID_SET.has(raw.user_id)) continue
     const uid   = raw.user_id
     const pid   = raw.project_id ?? 'unassigned'
     const hours = raw.hours_logged ?? 0
